@@ -1,0 +1,14 @@
+# 1st Player RT5 / RT7 / RT9 case LCD
+#
+# Check the actual IDs on your machine:
+#   lsusb
+#   udevadm info -q property -n /dev/hidraw3 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID'
+#
+# The test unit enumerates as 5131:2007. Replace the values below if yours
+# differs. TAG+="uaccess" grants the logged-in desktop user an ACL on the
+# hidraw node; no root and no extra group are needed.
+
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="5131", ATTRS{idProduct}=="2007", TAG+="uaccess"
+
+# Fallback for systems without systemd-logind uaccess:
+# SUBSYSTEM=="hidraw", ATTRS{idVendor}=="5131", ATTRS{idProduct}=="2007", MODE="0660", GROUP="plugdev"

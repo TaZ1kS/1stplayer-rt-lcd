@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">1st Player RT LCD — Linux toolkit</title>
+  <desc id="desc">Banner for a Linux toolkit that controls the built-in USB LCD display of 1st Player RT5, RT7 and RT9 PC cases.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#060a12"/>
+      <stop offset="0.55" stop-color="#0a1220"/>
+      <stop offset="1" stop-color="#0c1a2b"/>
+    </linearGradient>
+    <linearGradient id="titleGradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="0.65" stop-color="#e2e8f0"/>
+      <stop offset="1" stop-color="#7dd3fc"/>
+    </linearGradient>
+    <linearGradient id="panelGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1422"/>
+      <stop offset="1" stop-color="#050a12"/>
+    </linearGradient>
+    <linearGradient id="cpuBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <linearGradient id="gpuBar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#6ee7b7"/>
+    </linearGradient>
+    <radialGradient id="cyanGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="greenGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#34d399" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#34d399" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e3a5f" stroke-width="1" opacity="0.28"/>
+    </pattern>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <path d="M 0 0 H 4" stroke="#7dd3fc" stroke-width="0.6" opacity="0.035"/>
+    </pattern>
+    <filter id="glowCyan" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glowGreen" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <style>
+      .sans { font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif; }
+      .mono { font-family: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace; }
+      .seg { fill: none; stroke-width: 5.4; stroke-linecap: round; stroke-linejoin: round; }
+      .seg-off { stroke: #13314f; opacity: 0.55; }
+      .cpu-on { stroke: #38bdf8; filter: url(#glowCyan); }
+      .gpu-on { stroke: #34d399; filter: url(#glowGreen); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="320" fill="url(#bg)"/>
+  <rect width="1200" height="320" fill="url(#grid)"/>
+  <ellipse cx="1040" cy="70" rx="300" ry="220" fill="url(#cyanGlow)"/>
+  <ellipse cx="820" cy="300" rx="260" ry="150" fill="url(#greenGlow)"/>
+  <rect width="1200" height="320" fill="url(#scan)"/>
+
+  <!-- left: copy -->
+  <g transform="translate(64,54)">
+    <rect x="0" y="0" width="248" height="30" rx="15" fill="#0c1b2d" stroke="#1e4d70"/>
+    <circle cx="17" cy="15" r="4" fill="#22d3ee"/>
+    <text x="30" y="19.5" class="mono" font-size="10.5" letter-spacing="2.6" fill="#7dd3fc">LINUX · USB HID · PYTHON</text>
+
+    <text x="0" y="98" class="sans" font-size="54" font-weight="800" letter-spacing="-1.4" fill="url(#titleGradient)">1st Player <tspan fill="#38bdf8">RT LCD</tspan></text>
+
+    <text x="1" y="136" class="sans" font-size="19" fill="#cbd5e1">USB-дисплей корпусу під контролем Linux</text>
+    <text x="1" y="161" class="mono" font-size="12.5" fill="#7c93ad">RT5 / RT7 / RT9  ·  CPU + GPU  ·  6-digit 7-segment</text>
+
+    <g transform="translate(0,190)">
+      <rect x="0" y="0" width="86" height="30" rx="8" fill="#071a2b" stroke="#155e75"/>
+      <text x="12" y="19.5" class="mono" font-size="11" fill="#67e8f9">lcd.py</text>
+
+      <rect x="96" y="0" width="122" height="30" rx="8" fill="#121126" stroke="#4c1d95"/>
+      <text x="108" y="19.5" class="mono" font-size="11" fill="#c4b5fd">lcd_sym.py</text>
+
+      <rect x="228" y="0" width="106" height="30" rx="8" fill="#211608" stroke="#78350f"/>
+      <text x="240" y="19.5" class="mono" font-size="11" fill="#fcd34d">unlock.py</text>
+    </g>
+
+    <text x="350" y="210" class="mono" font-size="10.5" fill="#52657a">stdlib only · no vendor app</text>
+  </g>
+
+  <!-- right: display mockup -->
+  <g transform="translate(728,54)">
+    <rect x="0" y="0" width="412" height="212" rx="22" fill="#0a1421" stroke="#1f3a5f" stroke-width="1.5"/>
+    <rect x="2" y="2" width="408" height="208" rx="20" fill="none" stroke="#0d2238" stroke-width="1"/>
+    <rect x="11" y="11" width="390" height="190" rx="14" fill="url(#panelGradient)" stroke="#102b47"/>
+    <rect x="11" y="11" width="390" height="190" rx="14" fill="url(#scan)"/>
+
+    <!-- panel labels -->
+    <text x="31" y="38" class="mono" font-size="11" letter-spacing="3" fill="#fbbf24">CPU</text>
+    <text x="234" y="38" class="mono" font-size="11" letter-spacing="3" fill="#34d399">GPU</text>
+    <text x="160" y="88" class="mono" font-size="11" fill="#475569">°C</text>
+    <text x="363" y="88" class="mono" font-size="11" fill="#475569">°C</text>
+
+    <!-- CPU 6 -->
+    <g transform="translate(29,52)">
+      <g class="seg seg-off">
+        <path d="M8 6 H36"/><path d="M38 8 V32"/><path d="M38 40 V64"/>
+        <path d="M8 66 H36"/><path d="M6 40 V64"/><path d="M6 8 V32"/><path d="M8 36 H36"/>
+      </g>
+      <g class="seg cpu-on">
+        <path d="M8 6 H36"/><path d="M6 8 V32"/><path d="M8 36 H36"/>
+        <path d="M6 40 V64"/><path d="M8 66 H36"/><path d="M38 40 V64"/>
+      </g>
+    </g>
+
+    <!-- CPU 5 -->
+    <g transform="translate(79,52)">
+      <g class="seg seg-off">
+        <path d="M8 6 H36"/><path d="M38 8 V32"/><path d="M38 40 V64"/>
+        <path d="M8 66 H36"/><path d="M6 40 V64"/><path d="M6 8 V32"/><path d="M8 36 H36"/>
+      </g>
+      <g class="seg cpu-on">
+        <path d="M8 6 H36"/><path d="M6 8 V32"/><path d="M8 36 H36"/>
+        <path d="M38 40 V64"/><path d="M8 66 H36"/>
+      </g>
+    </g>
+
+    <!-- GPU 4 -->
+    <g transform="translate(232,52)">
+      <g class="seg seg-off">
+        <path d="M8 6 H36"/><path d="M38 8 V32"/><path d="M38 40 V64"/>
+        <path d="M8 66 H36"/><path d="M6 40 V64"/><path d="M6 8 V32"/><path d="M8 36 H36"/>
+      </g>
+      <g class="seg gpu-on">
+        <path d="M6 8 V32"/><path d="M8 36 H36"/><path d="M38 8 V32"/><path d="M38 40 V64"/>
+      </g>
+    </g>
+
+    <!-- GPU 2 -->
+    <g transform="translate(282,52)">
+      <g class="seg seg-off">
+        <path d="M8 6 H36"/><path d="M38 8 V32"/><path d="M38 40 V64"/>
+        <path d="M8 66 H36"/><path d="M6 40 V64"/><path d="M6 8 V32"/><path d="M8 36 H36"/>
+      </g>
+      <g class="seg gpu-on">
+        <path d="M8 6 H36"/><path d="M38 8 V32"/><path d="M8 36 H36"/>
+        <path d="M6 40 V64"/><path d="M8 66 H36"/>
+      </g>
+    </g>
+
+    <!-- CPU bars: 8/10 -->
+    <g transform="translate(29,151)">
+      <rect x="0" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="16" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="32" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="48" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="64" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="80" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="96" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="112" y="0" width="12" height="9" rx="2" fill="url(#cpuBar)"/>
+      <rect x="128" y="0" width="12" height="9" rx="2" fill="#0c2338" stroke="#163b5c"/>
+      <rect x="144" y="0" width="12" height="9" rx="2" fill="#0c2338" stroke="#163b5c"/>
+      <text x="0" y="26" class="mono" font-size="8.5" letter-spacing="2" fill="#52657a">USAGE</text>
+    </g>
+
+    <!-- GPU bars: 5/10 -->
+    <g transform="translate(232,151)">
+      <rect x="0" y="0" width="12" height="9" rx="2" fill="url(#gpuBar)"/>
+      <rect x="16" y="0" width="12" height="9" rx="2" fill="url(#gpuBar)"/>
+      <rect x="32" y="0" width="12" height="9" rx="2" fill="url(#gpuBar)"/>
+      <rect x="48" y="0" width="12" height="9" rx="2" fill="url(#gpuBar)"/>
+      <rect x="64" y="0" width="12" height="9" rx="2" fill="url(#gpuBar)"/>
+      <rect x="80" y="0" width="12" height="9" rx="2" fill="#0c2338" stroke="#163b5c"/>
+      <rect x="96" y="0" width="12" height="9" rx="2" fill="#0c2338" stroke="#163b5c"/>
+      <rect x="112" y="0" width="12" height="9" rx="2" fill="#0c2338" stroke="#163b5c"/>
+      <rect x="128" y="0" width="12" height="9" rx="2" fill="#0c2338" stroke="#163b5c"/>
+      <rect x="144" y="0" width="12" height="9" rx="2" fill="#0c2338" stroke="#163b5c"/>
+      <text x="0" y="26" class="mono" font-size="8.5" letter-spacing="2" fill="#52657a">USAGE</text>
+    </g>
+
+    <text x="390" y="197" text-anchor="end" class="mono" font-size="8.5" letter-spacing="1.2" fill="#3f556b">64-BYTE HID · 1 HZ</text>
+    <circle cx="20" cy="197" r="2.5" fill="#22d3ee" opacity="0.9"/>
+    <text x="29" y="200" class="mono" font-size="8.5" letter-spacing="1.2" fill="#3f556b">LIVE</text>
+  </g>
+
+  <rect x="64" y="292" width="1072" height="1" fill="#16324d" opacity="0.7"/>
+  <text x="64" y="311" class="mono" font-size="9.5" letter-spacing="2.4" fill="#3f556b">REVERSE-ENGINEERED HID PROTOCOL</text>
+  <text x="1136" y="311" text-anchor="end" class="mono" font-size="9.5" letter-spacing="2.4" fill="#3f556b">RT5 · RT7 · RT9</text>
+</svg>
