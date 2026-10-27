@@ -14,12 +14,15 @@
 
 На тестовій машині пристрій з'явився як `/dev/hidraw3`. У твоїй системі номер може бути іншим. Репозиторій містить udev-правило, яке створює symlink `/dev/1stplayer-rt-lcd`; саме його використовує systemd-сервіс. Для ручного запуску можна передати як symlink, так і конкретний `hidraw`-вузол.
 
+Скрипти визначають пристрій автоматично: явний аргумент → `/dev/1stplayer-rt-lcd` → пошук у `/sys/class/hidraw/hidraw*/device/uevent` за `HID_ID=0003:00005131:00002007`. Якщо збігів немає або їх кілька, скрипт показує список доступних `hidraw`-пристроїв і завершується, не надсилаючи кадри на випадковий вузол.
+
 Перевірити, який саме вузол належить дисплею:
 
 ```bash
 lsusb
 udevadm info -q property -n /dev/hidraw3 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID|HID_NAME'
-ls -l /dev/hidraw*
+cat /sys/class/hidraw/hidraw3/device/uevent | grep HID_ID
+ls -l /dev/hidraw* /dev/1stplayer-rt-lcd
 ```
 
 ## 2. Кадр

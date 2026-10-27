@@ -19,6 +19,7 @@
 
 <p align="center">
   <a href="#швидкий-старт">Швидкий старт</a> ·
+  <a href="#автовизначення-hidraw">Автовизначення</a> ·
   <a href="#systemd-сервіс">systemd</a> ·
   <a href="#скрипти">Скрипти</a> ·
   <a href="#протокол-кадру">Протокол</a> ·
@@ -40,6 +41,7 @@
 | **ОС** | Linux: `hidraw`, `sysfs`, `hwmon` |
 | **Залежності** | лише стандартна бібліотека Python 3.8+ |
 | **Тестовий пристрій** | `5131:2007`, на тестовій машині — `/dev/hidraw3` |
+| **Автовизначення** | symlink `/dev/1stplayer-rt-lcd` → пошук за USB ID `5131:2007` |
 
 > [!NOTE]
 > На тестовій машині `lsusb` підписує цей пристрій як `MSR MSR-101U Mini HID magnetic card reader` — це лише збіг VID/PID у базі `usb.ids`. Орієнтуйся на `hidraw`-вузол, який з'являється після підключення корпусу, і на 64-байтні HID-репорти.
@@ -74,9 +76,11 @@ journalctl -u 1stplayer-rt-lcd.service -f
 
 ```bash
 sudo ./install.sh --no-service
-python3 scripts/lcd.py                 # або /dev/1stplayer-rt-lcd
-python3 scripts/lcd.py /dev/hidraw5    # якщо symlink не використовується
+python3 scripts/lcd.py                 # автовизначення пристрою
+python3 scripts/lcd.py /dev/hidraw5    # явний hidraw-вузол
 ```
+
+Скрипти самі знаходять дисплей: спочатку стабільний `/dev/1stplayer-rt-lcd`, потім `hidraw`-вузол із USB ID `5131:2007`. Явний шлях у аргументі має найвищий пріоритет. Якщо збігу немає або їх кілька, скрипт покаже список доступних `hidraw`-пристроїв і завершиться — випадковий пристрій не використовується.
 
 Якщо у системі кілька `hidraw`-пристроїв, спершу знай потрібний:
 
@@ -163,6 +167,25 @@ python3 scripts/unlock.py
 
 > [!WARNING]
 > Режим «все увімкнено» виставляє `0xFF` у байти 24–53, включно зі службовими бітами. Через це екран може блимати, гаснути або поводитися нестандартно — для стрес-тесту це очікувано. Не використовуйте цей режим як постійний.
+
+## Автовизначення hidraw
+
+Порядок вибору пристрою:
+
+1. **Явний аргумент** — `python3 scripts/lcd.py /dev/hidraw5` завжди має найвищий пріоритет.
+2. **Стабільний symlink** `/dev/1stplayer-rt-lcd`, який створює udev-правило.
+3. **Пошук за USB ID** — скрипт читає `HID_ID` з `/sys/class/hidraw/hidraw*/device/uevent` і шукає `0003:00005131:00002007`.
+
+Якщо знайдено рівно один збіг, використовується він. Якщо збігів немає або їх кілька, скрипт завершується зі списком доступних `hidraw`-пристроїв і підказкою. Це зроблено навмисно: краще не запуститися, ніж надіслати 64-байтні кадри клавіатурі, миші чи іншому HID-пристрою.
+
+Перевірити ID вручну:
+
+```bash
+udevadm info -q property -n /dev/hidraw3 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID'
+cat /sys/class/hidraw/hidraw3/device/uevent | grep HID_ID
+```
+
+Якщо у твоєї ревізії інший VID/PID, зміни `USB_VID`/`USB_PID` у трьох скриптах або просто передавай шлях явно. Для udev-правила — `idVendor`/`idProduct` у `udev/99-1stplayer-rt-lcd.rules`.
 
 ## systemd-сервіс
 
@@ -254,7 +277,7 @@ systemctl --user daemon-reload
 ```
 
 > [!NOTE]
-> Якщо `/dev/1stplayer-rt-lcd` не з'явився, перевір VID/PID у udev-правилі, виконай `sudo udevadm control --reload-rules && sudo udevadm trigger` і перепідключи кабель дисплея. Автовизначення пристрою за VID/PID у самому скрипті поки не реалізовано.
+> Якщо `/dev/1stplayer-rt-lcd` не з'явився, перевір VID/PID у udev-правилі, виконай `sudo udevadm control --reload-rules && sudo udevadm trigger` і перепідключи кабель дисплея. Скрипти вміють знаходити пристрій за USB ID і без symlink, але сервіс явно використовує `/dev/1stplayer-rt-lcd`, щоб не залежати від порядку `hidrawN`.
 
 ## Протокол кадру
 
@@ -367,7 +390,7 @@ stdin (Гц) ─────► unlock.py ────────────�
 - [x] Бігучий рядок
 - [x] Тест усіх сегментів
 - [x] systemd-сервіс (системний і user)
-- [ ] Автовизначення `hidraw` за VID/PID
+- [x] Автовизначення `hidraw` за VID/PID
 - [ ] Конфігураційний файл і прапорці CLI
 - [ ] Режими memory/frequency, якщо панель їх підтримує
 - [ ] Пакунок для AUR

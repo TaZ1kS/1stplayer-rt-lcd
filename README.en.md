@@ -19,6 +19,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
+  <a href="#hidraw-auto-detection">Auto-detection</a> ·
   <a href="#systemd-service">systemd</a> ·
   <a href="#scripts">Scripts</a> ·
   <a href="#frame-format">Frame format</a> ·
@@ -40,6 +41,7 @@
 | **OS** | Linux (`hidraw`, `sysfs`, `hwmon`) |
 | **Dependencies** | Python 3.8+ standard library only |
 | **Test unit** | `5131:2007`, exposed as `/dev/hidraw3` on the test machine |
+| **Auto-detection** | `/dev/1stplayer-rt-lcd` symlink → USB ID `5131:2007` scan |
 
 > [!NOTE]
 > On the test machine `lsusb` labels this device as `MSR MSR-101U Mini HID magnetic card reader` — that is just a VID/PID match in the `usb.ids` database. Look for the `hidraw` node that appears when the case display is connected and for 64-byte HID reports.
@@ -66,9 +68,11 @@ To run manually without a service:
 
 ```bash
 sudo ./install.sh --no-service
-python3 scripts/lcd.py                 # or /dev/1stplayer-rt-lcd
+python3 scripts/lcd.py                 # auto-detect the display
 python3 scripts/lcd.py /dev/hidraw5    # explicit hidraw node
 ```
+
+The scripts auto-detect the display: first the stable `/dev/1stplayer-rt-lcd` symlink, then a `hidraw` node with USB ID `5131:2007`. An explicit path argument always wins. If there is no match or more than one, the script lists the available `hidraw` devices and exits — it never picks a random device.
 
 With multiple hidraw devices, find the right one first:
 
@@ -83,6 +87,25 @@ make monitor              # python3 scripts/lcd.py /dev/1stplayer-rt-lcd
 make marquee              # python3 scripts/lcd_sym.py /dev/1stplayer-rt-lcd
 make stress               # python3 scripts/unlock.py /dev/1stplayer-rt-lcd
 ```
+
+## hidraw auto-detection
+
+Device selection order:
+
+1. **Explicit argument** — `python3 scripts/lcd.py /dev/hidraw5` always wins.
+2. **Stable symlink** `/dev/1stplayer-rt-lcd`, created by the udev rule.
+3. **USB ID scan** — the script reads `HID_ID` from `/sys/class/hidraw/hidraw*/device/uevent` and looks for `0003:00005131:00002007`.
+
+If exactly one device matches, it is used. If there are no matches or several, the script lists the available `hidraw` devices and exits. This is intentional: it is better to fail than to send 64-byte frames to a keyboard, mouse or another HID device.
+
+Check the IDs manually:
+
+```bash
+udevadm info -q property -n /dev/hidraw3 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID'
+cat /sys/class/hidraw/hidraw3/device/uevent | grep HID_ID
+```
+
+If your revision uses a different VID/PID, change `USB_VID`/`USB_PID` in the three scripts or pass the path explicitly. For the udev rule, change `idVendor`/`idProduct` in `udev/99-1stplayer-rt-lcd.rules`.
 
 ## systemd service
 
@@ -164,7 +187,7 @@ systemctl --user daemon-reload
 ```
 
 > [!NOTE]
-> If `/dev/1stplayer-rt-lcd` does not appear, check the VID/PID in the udev rule, run `sudo udevadm control --reload-rules && sudo udevadm trigger`, and replug the display. The script itself does not auto-detect the device by VID/PID yet.
+> If `/dev/1stplayer-rt-lcd` does not appear, check the VID/PID in the udev rule, run `sudo udevadm control --reload-rules && sudo udevadm trigger`, and replug the display. The scripts can also find the device by USB ID without the symlink, but the service uses `/dev/1stplayer-rt-lcd` explicitly so it does not depend on the `hidrawN` ordering.
 
 ## Scripts
 

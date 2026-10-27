@@ -3,18 +3,72 @@
 """Live CPU/GPU telemetry for the 1st Player RT5/RT7/RT9 case LCD.
 
 Reads temperatures and load from Linux sysfs/procfs and renders them into the
-64-byte HID report expected by the display. Defaults to the stable
-/dev/1stplayer-rt-lcd symlink and falls back to /dev/hidraw3. Pass an explicit
-path as the first argument to override it.
+64-byte HID report expected by the display. The device is auto-detected via
+/dev/1stplayer-rt-lcd or USB ID 5131:2007; pass an explicit hidraw path as the
+first argument to override it.
 """
 import time
 import sys
 import os
 import glob
 
-DEV_PATH = "/dev/1stplayer-rt-lcd"
-if not os.path.exists(DEV_PATH):
-    DEV_PATH = "/dev/hidraw3"
+# --- АВТОВИЗНАЧЕННЯ HIDRAW-ВУЗЛА ---
+USB_VID = 0x5131
+USB_PID = 0x2007
+STABLE_PATH = "/dev/1stplayer-rt-lcd"
+
+
+def _hid_id(sys_node):
+    """Повертає (VID, PID) з sysfs uevent або None."""
+    try:
+        with open(os.path.join(sys_node, "device", "uevent"), encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("HID_ID="):
+                    _, vid, pid = line.strip().split("=", 1)[1].split(":")
+                    return int(vid, 16), int(pid, 16)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _hidraw_devices():
+    """Список (dev_node, (VID, PID) або None) для всіх hidraw."""
+    result = []
+    for sys_node in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
+        result.append(("/dev/" + os.path.basename(sys_node), _hid_id(sys_node)))
+    return result
+
+
+def find_lcd_device(explicit=None):
+    """Знаходить вузол дисплея: аргумент -> symlink -> VID/PID."""
+    if explicit:
+        return explicit
+    if os.path.exists(STABLE_PATH):
+        return STABLE_PATH
+
+    devices = _hidraw_devices()
+    matches = [node for node, ids in devices if ids == (USB_VID, USB_PID)]
+    if len(matches) == 1:
+        return matches[0]
+
+    lines = []
+    if len(matches) > 1:
+        lines.append(f"[!] Знайдено кілька дисплеїв {USB_VID:04x}:{USB_PID:04x}:")
+        lines.extend(f"      {node}" for node in matches)
+        lines.append("    Вкажи потрібний шлях явно.")
+    else:
+        lines.append(f"[!] Дисплей 1st Player ({USB_VID:04x}:{USB_PID:04x}) не знайдено.")
+        if devices:
+            lines.append("    Доступні hidraw-пристрої:")
+            for node, ids in devices:
+                hid = f"{ids[0]:04x}:{ids[1]:04x}" if ids else "HID ID недоступний"
+                lines.append(f"      {node}  ({hid})")
+            lines.append("    Вкажи шлях явно: python3 scripts/lcd.py /dev/hidrawN")
+        else:
+            lines.append("    У системі немає /dev/hidraw*.")
+            lines.append("    Перевір, чи підключено USB-кабель дисплея.")
+        lines.append("    Або встанови udev-правило: sudo ./install.sh")
+    raise SystemExit("\n".join(lines))
 
 # Точна мапа 7-сегментних розрядів [A, B, C, D, E, F, G]
 SEGMENT_MAP = {
@@ -47,8 +101,8 @@ BAR_GPU = [(49,0), (51,0), (40,7), (42,7), (44,7), (47,0), (52,7), (50,7), (48,7
 
 
 class SystemTelemetryLCD:
-    def __init__(self, dev_path=DEV_PATH):
-        self.dev_path = dev_path
+    def __init__(self, dev_path=None):
+        self.dev_path = dev_path or find_lcd_device()
         self.seq_id = 0x61
         self.prev_idle = 0
         self.prev_total = 0
@@ -212,7 +266,13 @@ class SystemTelemetryLCD:
             print(f"[!] Помилка запису в {self.dev_path}: {e}")
 
 def main():
-    dev_node = sys.argv[1] if len(sys.argv) > 1 else DEV_PATH
+    dev_node = find_lcd_device(sys.argv[1] if len(sys.argv) > 1 else None)
+    if os.path.exists(dev_node) and not os.access(dev_node, os.W_OK):
+        raise SystemExit(
+            f"[!] Немає доступу на запис до {dev_node}.\n"
+            "    Встанови udev-правило: sudo ./install.sh\n"
+            "    Або запусти з sudo: sudo python3 scripts/lcd.py"
+        )
     monitor = SystemTelemetryLCD(dev_node)
 
     print(f"[*] Телеметрію запущено ({dev_node}). Натисни Ctrl+C для виходу.")

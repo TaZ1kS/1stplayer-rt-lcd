@@ -31,10 +31,11 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 1
 fi
 
-install -d "${PREFIX}/scripts" "${PREFIX}/docs"
+install -d "${PREFIX}/scripts" "${PREFIX}/docs" "${PREFIX}/assets"
 install -m 755 "${ROOT}/scripts/lcd.py" "${ROOT}/scripts/lcd_sym.py" "${ROOT}/scripts/unlock.py" "${PREFIX}/scripts/"
-install -m 644 "${ROOT}/README.md" "${ROOT}/README.en.md" "${ROOT}/LICENSE" "${PREFIX}/"
+install -m 644 "${ROOT}/README.md" "${ROOT}/README.en.md" "${ROOT}/CHANGELOG.md" "${ROOT}/LICENSE" "${PREFIX}/"
 install -m 644 "${ROOT}"/docs/*.md "${PREFIX}/docs/"
+install -m 644 "${ROOT}"/assets/*.svg "${PREFIX}/assets/"
 install -m 644 "${ROOT}/udev/99-1stplayer-rt-lcd.rules" "${UDEV}"
 install -m 644 "${ROOT}/systemd/1stplayer-rt-lcd.service" "${UNIT}"
 

@@ -3,15 +3,71 @@
 """Scrolling text for the 1st Player RT5/RT7/RT9 case LCD.
 
 Six 7-segment digits are used as a tiny marquee. The font covers digits,
-basic Latin and a subset of Cyrillic letters.
+basic Latin and a subset of Cyrillic letters. The display is auto-detected
+via /dev/1stplayer-rt-lcd or USB ID 5131:2007.
 """
 import time
 import sys
 import os
+import glob
 
-DEV_PATH = "/dev/1stplayer-rt-lcd"
-if not os.path.exists(DEV_PATH):
-    DEV_PATH = "/dev/hidraw3"
+# --- АВТОВИЗНАЧЕННЯ HIDRAW-ВУЗЛА ---
+USB_VID = 0x5131
+USB_PID = 0x2007
+STABLE_PATH = "/dev/1stplayer-rt-lcd"
+
+
+def _hid_id(sys_node):
+    """Повертає (VID, PID) з sysfs uevent або None."""
+    try:
+        with open(os.path.join(sys_node, "device", "uevent"), encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("HID_ID="):
+                    _, vid, pid = line.strip().split("=", 1)[1].split(":")
+                    return int(vid, 16), int(pid, 16)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _hidraw_devices():
+    """Список (dev_node, (VID, PID) або None) для всіх hidraw."""
+    result = []
+    for sys_node in sorted(glob.glob("/sys/class/hidraw/hidraw*")):
+        result.append(("/dev/" + os.path.basename(sys_node), _hid_id(sys_node)))
+    return result
+
+
+def find_lcd_device(explicit=None):
+    """Знаходить вузол дисплея: аргумент -> symlink -> VID/PID."""
+    if explicit:
+        return explicit
+    if os.path.exists(STABLE_PATH):
+        return STABLE_PATH
+
+    devices = _hidraw_devices()
+    matches = [node for node, ids in devices if ids == (USB_VID, USB_PID)]
+    if len(matches) == 1:
+        return matches[0]
+
+    lines = []
+    if len(matches) > 1:
+        lines.append(f"[!] Знайдено кілька дисплеїв {USB_VID:04x}:{USB_PID:04x}:")
+        lines.extend(f"      {node}" for node in matches)
+        lines.append("    Вкажи потрібний шлях явно.")
+    else:
+        lines.append(f"[!] Дисплей 1st Player ({USB_VID:04x}:{USB_PID:04x}) не знайдено.")
+        if devices:
+            lines.append("    Доступні hidraw-пристрої:")
+            for node, ids in devices:
+                hid = f"{ids[0]:04x}:{ids[1]:04x}" if ids else "HID ID недоступний"
+                lines.append(f"      {node}  ({hid})")
+            lines.append("    Вкажи шлях явно: python3 scripts/lcd_sym.py /dev/hidrawN")
+        else:
+            lines.append("    У системі немає /dev/hidraw*.")
+            lines.append("    Перевір, чи підключено USB-кабель дисплея.")
+        lines.append("    Або встанови udev-правило: sudo ./install.sh")
+    raise SystemExit("\n".join(lines))
 
 # Точна мапа 6 розрядів у ряд (зліва направо: CPU1-3, GPU1-3)
 DIGIT_NODES = ['CPU1', 'CPU2', 'CPU3', 'GPU1', 'GPU2', 'GPU3']
@@ -54,8 +110,8 @@ FONT = {
 }
 
 class MarqueeLCD:
-    def __init__(self, dev_path=DEV_PATH):
-        self.dev_path = dev_path
+    def __init__(self, dev_path=None):
+        self.dev_path = dev_path or find_lcd_device()
         self.seq_id = 0x61
 
     def _get_seq(self):
@@ -103,7 +159,13 @@ class MarqueeLCD:
             time.sleep(delay)
 
 def main():
-    dev_node = sys.argv[1] if len(sys.argv) > 1 else DEV_PATH
+    dev_node = find_lcd_device(sys.argv[1] if len(sys.argv) > 1 else None)
+    if os.path.exists(dev_node) and not os.access(dev_node, os.W_OK):
+        raise SystemExit(
+            f"[!] Немає доступу на запис до {dev_node}.\n"
+            "    Встанови udev-правило: sudo ./install.sh\n"
+            "    Або запусти з sudo: sudo python3 scripts/lcd_sym.py"
+        )
     marquee = MarqueeLCD(dev_node)
 
     print("=" * 60)
