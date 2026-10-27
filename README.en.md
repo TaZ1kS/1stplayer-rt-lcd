@@ -39,6 +39,9 @@
 | **Dependencies** | Python 3.8+ standard library only |
 | **Test unit** | `5131:2007`, exposed as `/dev/hidraw3` on the test machine |
 
+> [!NOTE]
+> On the test machine `lsusb` labels this device as `MSR MSR-101U Mini HID magnetic card reader` — that is just a VID/PID match in the `usb.ids` database. Look for the `hidraw` node that appears when the case display is connected and for 64-byte HID reports.
+
 The panel has six 7-segment digits (three for CPU, three for GPU), two 10-segment bars and status labels such as `CPU`, `GPU`, `USAGE`, `%` and `°C`. These scripts implement the most useful mode: live CPU/GPU temperature and load.
 
 ## Quick start
@@ -138,6 +141,10 @@ Bits are zero-indexed: `0x01` is bit 0, `0x80` is bit 7. To light segment `A` of
 See [`docs/PROTOCOL.md`](docs/PROTOCOL.md) for the full breakdown.
 
 ## Segment map
+
+<p align="center">
+  <img src="assets/panel-map.svg" alt="Panel layout: six 7-segment digits and two 10-segment bars" width="100%">
+</p>
 
 Addresses are written as `byte.bit`.
 

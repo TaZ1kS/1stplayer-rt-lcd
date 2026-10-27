@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="460" viewBox="0 0 1100 460" role="img" aria-labelledby="title desc">
+  <title id="title">1st Player RT LCD panel layout</title>
+  <desc id="desc">Diagram of the six 7-segment digits and two 10-segment bars on the 1st Player RT5, RT7 and RT9 case display.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b12"/>
+      <stop offset="1" stop-color="#0d1828"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#1e3a5f" stroke-width="1" opacity="0.25"/>
+    </pattern>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <style>
+      .sans { font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif; }
+      .mono { font-family: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace; }
+      .seg { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+      .cpu { stroke: #38bdf8; filter: url(#glow); }
+      .gpu { stroke: #34d399; filter: url(#glow); }
+      .off { fill: #0a1a2b; stroke: #163b5c; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="460" rx="18" fill="url(#bg)"/>
+  <rect width="1100" height="460" rx="18" fill="url(#grid)"/>
+
+  <text x="50" y="48" class="sans" font-size="26" font-weight="700" fill="#f8fafc">Panel layout</text>
+  <text x="50" y="72" class="mono" font-size="11.5" letter-spacing="1.6" fill="#64748b">1ST PLAYER RT5 / RT7 / RT9 · 6-DIGIT LCD</text>
+  <text x="1050" y="48" text-anchor="end" class="mono" font-size="10.5" letter-spacing="1.4" fill="#475569">ADDRESSES: BYTE.BIT</text>
+
+  <!-- CPU panel -->
+  <g transform="translate(50,100)">
+    <rect width="480" height="300" rx="16" fill="#0a1421" stroke="#1f3a5f"/>
+    <rect x="10" y="10" width="460" height="280" rx="11" fill="#04070d" stroke="#102b47"/>
+    <text x="28" y="40" class="mono" font-size="11" letter-spacing="3" fill="#fbbf24">CPU</text>
+    <text x="99" y="40" class="mono" font-size="9.5" letter-spacing="1.2" fill="#475569">TEMPERATURE °C</text>
+
+    <!-- CPU digit 1 -->
+    <g transform="translate(28,62)">
+      <g class="seg cpu">
+        <path d="M10 8 H46"/><path d="M48 10 V40"/><path d="M48 52 V82"/>
+        <path d="M10 84 H46"/><path d="M8 52 V82"/><path d="M8 10 V40"/><path d="M10 46 H46"/>
+      </g>
+    </g>
+    <!-- CPU digit 2 -->
+    <g transform="translate(114,62)">
+      <g class="seg cpu">
+        <path d="M10 8 H46"/><path d="M48 10 V40"/><path d="M48 52 V82"/>
+        <path d="M10 84 H46"/><path d="M8 52 V82"/><path d="M8 10 V40"/><path d="M10 46 H46"/>
+      </g>
+    </g>
+    <!-- CPU digit 3 -->
+    <g transform="translate(200,62)">
+      <g class="seg cpu">
+        <path d="M10 8 H46"/><path d="M48 10 V40"/><path d="M48 52 V82"/>
+        <path d="M10 84 H46"/><path d="M8 52 V82"/><path d="M8 10 V40"/><path d="M10 46 H46"/>
+      </g>
+    </g>
+
+    <text x="29" y="172" class="mono" font-size="9" fill="#52657a">CPU1</text>
+    <text x="115" y="172" class="mono" font-size="9" fill="#52657a">CPU2</text>
+    <text x="201" y="172" class="mono" font-size="9" fill="#52657a">CPU3</text>
+    <text x="266" y="120" class="mono" font-size="20" fill="#475569">°C</text>
+
+    <text x="28" y="220" class="mono" font-size="9" letter-spacing="2" fill="#52657a">USAGE</text>
+    <g transform="translate(28,230)">
+      <rect x="0" y="0" width="36" height="14" rx="3" fill="#0ea5e9"/>
+      <rect x="42" y="0" width="36" height="14" rx="3" fill="#0ea5e9"/>
+      <rect x="84" y="0" width="36" height="14" rx="3" fill="#0ea5e9"/>
+      <rect x="126" y="0" width="36" height="14" rx="3" fill="#0ea5e9"/>
+      <rect x="168" y="0" width="36" height="14" rx="3" fill="#0ea5e9"/>
+      <rect x="210" y="0" width="36" height="14" rx="3" fill="#0ea5e9"/>
+      <rect x="252" y="0" width="36" height="14" rx="3" fill="#0ea5e9"/>
+      <rect x="294" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+      <rect x="336" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+      <rect x="378" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+    </g>
+    <text x="28" y="266" class="mono" font-size="8.5" fill="#3f556b">3 DIGITS · 10 BARS</text>
+  </g>
+
+  <!-- GPU panel -->
+  <g transform="translate(570,100)">
+    <rect width="480" height="300" rx="16" fill="#0a1421" stroke="#1f3a5f"/>
+    <rect x="10" y="10" width="460" height="280" rx="11" fill="#04070d" stroke="#102b47"/>
+    <text x="28" y="40" class="mono" font-size="11" letter-spacing="3" fill="#fbbf24">GPU</text>
+    <text x="99" y="40" class="mono" font-size="9.5" letter-spacing="1.2" fill="#475569">TEMPERATURE °C</text>
+
+    <!-- GPU digit 1 -->
+    <g transform="translate(28,62)">
+      <g class="seg gpu">
+        <path d="M10 8 H46"/><path d="M48 10 V40"/><path d="M48 52 V82"/>
+        <path d="M10 84 H46"/><path d="M8 52 V82"/><path d="M8 10 V40"/><path d="M10 46 H46"/>
+      </g>
+    </g>
+    <!-- GPU digit 2 -->
+    <g transform="translate(114,62)">
+      <g class="seg gpu">
+        <path d="M10 8 H46"/><path d="M48 10 V40"/><path d="M48 52 V82"/>
+        <path d="M10 84 H46"/><path d="M8 52 V82"/><path d="M8 10 V40"/><path d="M10 46 H46"/>
+      </g>
+    </g>
+    <!-- GPU digit 3 -->
+    <g transform="translate(200,62)">
+      <g class="seg gpu">
+        <path d="M10 8 H46"/><path d="M48 10 V40"/><path d="M48 52 V82"/>
+        <path d="M10 84 H46"/><path d="M8 52 V82"/><path d="M8 10 V40"/><path d="M10 46 H46"/>
+      </g>
+    </g>
+
+    <text x="29" y="172" class="mono" font-size="9" fill="#52657a">GPU1</text>
+    <text x="115" y="172" class="mono" font-size="9" fill="#52657a">GPU2</text>
+    <text x="201" y="172" class="mono" font-size="9" fill="#52657a">GPU3</text>
+    <text x="266" y="120" class="mono" font-size="20" fill="#475569">°C</text>
+
+    <text x="28" y="220" class="mono" font-size="9" letter-spacing="2" fill="#52657a">USAGE</text>
+    <g transform="translate(28,230)">
+      <rect x="0" y="0" width="36" height="14" rx="3" fill="#10b981"/>
+      <rect x="42" y="0" width="36" height="14" rx="3" fill="#10b981"/>
+      <rect x="84" y="0" width="36" height="14" rx="3" fill="#10b981"/>
+      <rect x="126" y="0" width="36" height="14" rx="3" fill="#10b981"/>
+      <rect x="168" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+      <rect x="210" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+      <rect x="252" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+      <rect x="294" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+      <rect x="336" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+      <rect x="378" y="0" width="36" height="14" rx="3" fill="#0b2033" stroke="#163b5c"/>
+    </g>
+    <text x="28" y="266" class="mono" font-size="8.5" fill="#3f556b">3 DIGITS · 10 BARS</text>
+  </g>
+
+  <text x="50" y="432" class="mono" font-size="9.5" letter-spacing="1.2" fill="#3f556b">DIGITS: 7 SEGMENTS A–G · BARS: 10 SEGMENTS · LABELS: CPU / GPU / USAGE / % / °C</text>
+</svg>
