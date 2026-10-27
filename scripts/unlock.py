@@ -7,9 +7,12 @@ the actual FPS. The panel is cleared when the script exits.
 """
 import time
 import sys
+import os
 import threading
 
-DEV_PATH = "/dev/hidraw3"
+DEV_PATH = "/dev/1stplayer-rt-lcd"
+if not os.path.exists(DEV_PATH):
+    DEV_PATH = "/dev/hidraw3"
 
 # Всі байти для увімкнення абсолютно всіх сегментів на екрані
 ALL_ON_FRAME = bytearray([

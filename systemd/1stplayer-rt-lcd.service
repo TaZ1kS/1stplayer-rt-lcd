@@ -1,0 +1,32 @@
+[Unit]
+Description=1st Player RT5/RT7/RT9 LCD CPU/GPU telemetry
+Documentation=https://github.com/TaZ1kS/1stplayer-rt-lcd
+After=dev-1stplayer\x2drt\x2dlcd.device
+Wants=dev-1stplayer\x2drt\x2dlcd.device
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/1stplayer-rt-lcd
+ExecStart=/usr/bin/python3 /opt/1stplayer-rt-lcd/scripts/lcd.py /dev/1stplayer-rt-lcd
+Restart=always
+RestartSec=3
+SyslogIdentifier=1stplayer-rt-lcd
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+# Hardening: the script only reads /proc, /sys and writes to the display.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

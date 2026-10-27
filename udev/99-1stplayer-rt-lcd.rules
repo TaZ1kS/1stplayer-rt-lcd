@@ -5,10 +5,11 @@
 #   udevadm info -q property -n /dev/hidraw3 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID'
 #
 # The test unit enumerates as 5131:2007. Replace the values below if yours
-# differs. TAG+="uaccess" grants the logged-in desktop user an ACL on the
-# hidraw node; no root and no extra group are needed.
+# differs. SYMLINK creates a stable /dev/1stplayer-rt-lcd path for the service.
+# TAG+="uaccess" grants the logged-in desktop user an ACL on the hidraw node;
+# no root and no extra group are needed.
 
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="5131", ATTRS{idProduct}=="2007", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="5131", ATTRS{idProduct}=="2007", SYMLINK+="1stplayer-rt-lcd", TAG+="uaccess"
 
 # Fallback for systems without systemd-logind uaccess:
 # SUBSYSTEM=="hidraw", ATTRS{idVendor}=="5131", ATTRS{idProduct}=="2007", MODE="0660", GROUP="plugdev"

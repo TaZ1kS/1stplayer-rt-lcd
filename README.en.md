@@ -14,10 +14,12 @@
   <img alt="Python" src="https://img.shields.io/badge/Python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
   <img alt="USB HID" src="https://img.shields.io/badge/USB-HID-7c3aed?style=for-the-badge">
   <img alt="License" src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge">
+  <img alt="Release" src="https://img.shields.io/github/v/release/TaZ1kS/1stplayer-rt-lcd?style=for-the-badge&label=release&color=22c55e">
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
+  <a href="#systemd-service">systemd</a> ·
   <a href="#scripts">Scripts</a> ·
   <a href="#frame-format">Frame format</a> ·
   <a href="#segment-map">Segment map</a> ·
@@ -50,29 +52,119 @@ The panel has six 7-segment digits (three for CPU, three for GPU), two 10-segmen
 git clone https://github.com/TaZ1kS/1stplayer-rt-lcd.git
 cd 1stplayer-rt-lcd
 
-# One-time hidraw permissions. Check VID/PID in the udev rule first!
-sudo install -m 644 udev/99-1stplayer-rt-lcd.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+# Install the udev rule + systemd service (recommended)
+sudo ./install.sh
 
-# Replug the display's USB cable, then:
-python3 scripts/lcd.py
+# Check that the service is running
+systemctl status 1stplayer-rt-lcd.service
+journalctl -u 1stplayer-rt-lcd.service -f
 ```
 
-With multiple hidraw devices, pass the path explicitly:
+The installer copies the code to `/opt/1stplayer-rt-lcd`, creates a stable `/dev/1stplayer-rt-lcd` symlink via udev and starts the telemetry service. If the symlink has not appeared yet, replug the display's USB cable.
+
+To run manually without a service:
 
 ```bash
-ls -l /dev/hidraw*
-python3 scripts/lcd.py /dev/hidraw5
+sudo ./install.sh --no-service
+python3 scripts/lcd.py                 # or /dev/1stplayer-rt-lcd
+python3 scripts/lcd.py /dev/hidraw5    # explicit hidraw node
+```
+
+With multiple hidraw devices, find the right one first:
+
+```bash
+ls -l /dev/hidraw* /dev/1stplayer-rt-lcd
 ```
 
 Or use the Makefile:
 
 ```bash
-make monitor              # python3 scripts/lcd.py
-make marquee              # python3 scripts/lcd_sym.py
-make stress               # python3 scripts/unlock.py
+make monitor              # python3 scripts/lcd.py /dev/1stplayer-rt-lcd
+make marquee              # python3 scripts/lcd_sym.py /dev/1stplayer-rt-lcd
+make stress               # python3 scripts/unlock.py /dev/1stplayer-rt-lcd
 ```
+
+## systemd service
+
+The service keeps `scripts/lcd.py` running in the background, restarts it on failure and starts it at boot. It uses the stable `/dev/1stplayer-rt-lcd` symlink instead of a hard-coded `/dev/hidrawN`.
+
+### Install
+
+```bash
+sudo ./install.sh
+```
+
+The installer:
+
+1. copies the scripts and docs to `/opt/1stplayer-rt-lcd`;
+2. installs `/etc/udev/rules.d/99-1stplayer-rt-lcd.rules` with the symlink and `uaccess`;
+3. installs `1stplayer-rt-lcd.service`;
+4. enables and starts the service.
+
+Check it:
+
+```bash
+systemctl status 1stplayer-rt-lcd.service
+journalctl -u 1stplayer-rt-lcd.service -f
+ls -l /dev/1stplayer-rt-lcd
+```
+
+Manage it:
+
+```bash
+sudo systemctl restart 1stplayer-rt-lcd.service
+sudo systemctl stop 1stplayer-rt-lcd.service
+sudo systemctl disable --now 1stplayer-rt-lcd.service
+```
+
+The same via `make`:
+
+| Command | Action |
+|---|---|
+| `make install` | install the service and udev rule |
+| `make status` | show service status |
+| `make logs` | follow the journal |
+| `make uninstall` | remove the service |
+
+### Without a service
+
+```bash
+sudo ./install.sh --no-service
+python3 /opt/1stplayer-rt-lcd/scripts/lcd.py /dev/1stplayer-rt-lcd
+```
+
+### User service
+
+To run telemetry inside your desktop session instead, install the files without the system unit and then enable the user service:
+
+```bash
+sudo ./install.sh --no-service
+make install-user-service
+systemctl --user status 1stplayer-rt-lcd.service
+journalctl --user -u 1stplayer-rt-lcd.service -f
+```
+
+This works thanks to `TAG+="uaccess"` in the udev rule — no root required. The user service starts after graphical login, not at boot.
+
+### Update and remove
+
+```bash
+git pull
+sudo ./install.sh          # reinstall files and restart the service
+
+sudo ./uninstall.sh        # remove the service, udev rule and /opt files
+```
+
+For the user service:
+
+```bash
+systemctl --user disable --now 1stplayer-rt-lcd.service
+rm -f ~/.config/systemd/user/1stplayer-rt-lcd.service
+systemctl --user daemon-reload
+```
+
+> [!NOTE]
+> If `/dev/1stplayer-rt-lcd` does not appear, check the VID/PID in the udev rule, run `sudo udevadm control --reload-rules && sudo udevadm trigger`, and replug the display. The script itself does not auto-detect the device by VID/PID yet.
 
 ## Scripts
 
@@ -188,3 +280,5 @@ The scripts write to the selected hidraw node. Make sure it is the display, not 
 ## License
 
 [MIT](LICENSE) © 2026 TaZ1kS
+
+See [`CHANGELOG.md`](CHANGELOG.md) for release history.

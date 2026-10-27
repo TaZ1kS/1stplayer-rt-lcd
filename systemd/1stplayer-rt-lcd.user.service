@@ -1,0 +1,32 @@
+[Unit]
+Description=1st Player RT5/RT7/RT9 LCD CPU/GPU telemetry (user)
+Documentation=https://github.com/TaZ1kS/1stplayer-rt-lcd
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/1stplayer-rt-lcd
+ExecStart=/usr/bin/python3 /opt/1stplayer-rt-lcd/scripts/lcd.py /dev/1stplayer-rt-lcd
+Restart=on-failure
+RestartSec=3
+SyslogIdentifier=1stplayer-rt-lcd
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+# The udev rule uses TAG+="uaccess", so the active desktop user owns the node.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

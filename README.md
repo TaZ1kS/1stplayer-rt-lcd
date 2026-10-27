@@ -14,10 +14,12 @@
   <img alt="Python" src="https://img.shields.io/badge/Python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white">
   <img alt="USB HID" src="https://img.shields.io/badge/USB-HID-7c3aed?style=for-the-badge">
   <img alt="License" src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge">
+  <img alt="Release" src="https://img.shields.io/github/v/release/TaZ1kS/1stplayer-rt-lcd?style=for-the-badge&label=release&color=22c55e">
 </p>
 
 <p align="center">
   <a href="#швидкий-старт">Швидкий старт</a> ·
+  <a href="#systemd-сервіс">systemd</a> ·
   <a href="#скрипти">Скрипти</a> ·
   <a href="#протокол-кадру">Протокол</a> ·
   <a href="#карта-сегментів">Карта сегментів</a> ·
@@ -58,33 +60,41 @@
 git clone https://github.com/TaZ1kS/1stplayer-rt-lcd.git
 cd 1stplayer-rt-lcd
 
-# 1. Дозволи на hidraw (один раз). Перевір VID/PID у udev-правилі!
-sudo install -m 644 udev/99-1stplayer-rt-lcd.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+# Встановити udev-правило + systemd-сервіс (рекомендовано)
+sudo ./install.sh
 
-# 2. Перепідключи USB-кабель дисплея, потім:
-python3 scripts/lcd.py
+# Перевірити, що сервіс живий
+systemctl status 1stplayer-rt-lcd.service
+journalctl -u 1stplayer-rt-lcd.service -f
 ```
 
-Якщо у системі кілька `hidraw`-пристроїв, передай потрібний шлях аргументом:
+Скрипт встановлення копіює код у `/opt/1stplayer-rt-lcd`, створює стабільний symlink `/dev/1stplayer-rt-lcd` через udev і запускає телеметрію у фоні. Після першого встановлення перепідключи USB-кабель дисплея, якщо symlink ще не з'явився.
+
+Хочеш запускати вручну, без сервісу:
 
 ```bash
-ls -l /dev/hidraw*
-python3 scripts/lcd.py /dev/hidraw5
+sudo ./install.sh --no-service
+python3 scripts/lcd.py                 # або /dev/1stplayer-rt-lcd
+python3 scripts/lcd.py /dev/hidraw5    # якщо symlink не використовується
+```
+
+Якщо у системі кілька `hidraw`-пристроїв, спершу знай потрібний:
+
+```bash
+ls -l /dev/hidraw* /dev/1stplayer-rt-lcd
 ```
 
 Скрипти також можна запускати через `make`:
 
 ```bash
-make monitor              # python3 scripts/lcd.py
-make marquee              # python3 scripts/lcd_sym.py
-make stress               # python3 scripts/unlock.py
+make monitor              # python3 scripts/lcd.py /dev/1stplayer-rt-lcd
+make marquee              # python3 scripts/lcd_sym.py /dev/1stplayer-rt-lcd
+make stress               # python3 scripts/unlock.py /dev/1stplayer-rt-lcd
 make monitor DEV=/dev/hidraw5
 ```
 
 > [!TIP]
-> Без udev-правила можна тимчасово запускати з `sudo`, наприклад `sudo python3 scripts/lcd.py /dev/hidraw3`. Але постійне правило з `uaccess` зручніше й безпечніше.
+> Без udev-правила можна тимчасово запускати з `sudo`, наприклад `sudo python3 scripts/lcd.py /dev/hidraw3`. Але постійне правило з `uaccess` зручніше й безпечніше, а systemd-сервіс автоматично перезапускає телеметрію після збоїв.
 
 ## Скрипти
 
@@ -109,7 +119,7 @@ python3 scripts/lcd.py /dev/hidraw5
 Приклад виводу:
 
 ```text
-[*] Телеметрію запущено (/dev/hidraw3). Натисни Ctrl+C для виходу.
+[*] Телеметрію запущено (/dev/1stplayer-rt-lcd). Натисни Ctrl+C для виходу.
     CPU Temp file: /sys/class/hwmon/hwmon4/temp1_input
     GPU Temp file: /sys/class/drm/card1/device/hwmon/hwmon5/temp1_input
     GPU Busy file: /sys/class/drm/card1/device/gpu_busy_percent
@@ -154,6 +164,98 @@ python3 scripts/unlock.py
 > [!WARNING]
 > Режим «все увімкнено» виставляє `0xFF` у байти 24–53, включно зі службовими бітами. Через це екран може блимати, гаснути або поводитися нестандартно — для стрес-тесту це очікувано. Не використовуйте цей режим як постійний.
 
+## systemd-сервіс
+
+Сервіс тримає `scripts/lcd.py` запущеним у фоні, перезапускає його після збоїв і стартує разом із системою. Замість конкретного `/dev/hidrawN` використовується стабільний symlink `/dev/1stplayer-rt-lcd`, який створює udev-правило.
+
+### Встановлення
+
+```bash
+sudo ./install.sh
+```
+
+Що робить інсталятор:
+
+1. копіює скрипти й документацію в `/opt/1stplayer-rt-lcd`;
+2. встановлює `/etc/udev/rules.d/99-1stplayer-rt-lcd.rules` з symlink і `uaccess`;
+3. встановлює unit `1stplayer-rt-lcd.service`;
+4. вмикає автозапуск і запускає сервіс.
+
+Перевірка:
+
+```bash
+systemctl status 1stplayer-rt-lcd.service
+journalctl -u 1stplayer-rt-lcd.service -f
+ls -l /dev/1stplayer-rt-lcd
+```
+
+Керування:
+
+```bash
+sudo systemctl restart 1stplayer-rt-lcd.service
+sudo systemctl stop 1stplayer-rt-lcd.service
+sudo systemctl disable --now 1stplayer-rt-lcd.service
+```
+
+Те саме через `make`:
+
+| Команда | Дія |
+|---|---|
+| `make install` | встановити сервіс і udev-правило |
+| `make status` | показати статус сервісу |
+| `make logs` | стежити за журналом |
+| `make uninstall` | видалити сервіс |
+
+### Без сервісу
+
+```bash
+sudo ./install.sh --no-service   # файли + udev, без unit-файлу
+python3 /opt/1stplayer-rt-lcd/scripts/lcd.py /dev/1stplayer-rt-lcd
+```
+
+### User-сервіс
+
+Якщо системний сервіс не потрібен, телеметрію можна запускати в сесії користувача. Спершу встанови файли без системного unit-файлу, потім увімкни user-сервіс:
+
+```bash
+sudo ./install.sh --no-service
+make install-user-service
+systemctl --user status 1stplayer-rt-lcd.service
+journalctl --user -u 1stplayer-rt-lcd.service -f
+```
+
+User-сервіс стартує після входу в графічну сесію, а не при завантаженні системи.
+
+### Оновлення
+
+```bash
+git pull
+sudo ./install.sh          # перевстановить файли й перезапустить сервіс
+```
+
+Якщо змінилися тільки скрипти, достатньо:
+
+```bash
+sudo systemctl restart 1stplayer-rt-lcd.service
+```
+
+### Видалення
+
+```bash
+sudo ./uninstall.sh
+```
+
+Видаляє `/opt/1stplayer-rt-lcd`, unit-файл і udev-правило. User-сервіс прибирається окремо:
+
+```bash
+systemctl --user disable --now 1stplayer-rt-lcd.service
+rm -f ~/.config/systemd/user/1stplayer-rt-lcd.service
+systemctl --user daemon-reload
+```
+
+> [!NOTE]
+> Якщо `/dev/1stplayer-rt-lcd` не з'явився, перевір VID/PID у udev-правилі, виконай `sudo udevadm control --reload-rules && sudo udevadm trigger` і перепідключи кабель дисплея. Автовизначення пристрою за VID/PID у самому скрипті поки не реалізовано.
+
 ## Протокол кадру
 
 Один кадр — це 64 байти, які записуються у `hidraw`-вузол одним `write()`. Дисплей не надсилає підтверджень; достатньо надіслати наступний кадр.
@@ -178,7 +280,7 @@ buf[0] = 0x61
 buf[1] = 0x00
 buf[2] = 0x02
 buf[40] |= 1 << 0          # CPU1, сегмент A
-open("/dev/hidraw3", "wb").write(buf)
+open("/dev/1stplayer-rt-lcd", "wb").write(buf)
 ```
 
 Порожній кадр — це `61 00 02` і 61 нуль. Кадр «все увімкнено» — `61 00 02`, 21 нуль, 30 байт `FF` (байти 24–53) і 10 нулів.
@@ -237,7 +339,7 @@ stdin (текст) ──► lcd_sym.py ─────────────�
 stdin (Гц) ─────► unlock.py ─────────────────┘
 ```
 
-Усередині — звичайний `open(dev_path, "wb")` і `write()` 64-байтного `bytearray`. Ніяких `libusb`, Python-пакетів або фонового демона.
+Усередині — звичайний `open(dev_path, "wb")` і `write()` 64-байтного `bytearray`. Ніяких `libusb` і сторонніх Python-пакетів. systemd-сервіс лише тримає процес `lcd.py` живим і перезапускає його після збоїв.
 
 ## Сумісність
 
@@ -264,7 +366,7 @@ stdin (Гц) ─────► unlock.py ────────────�
 - [x] Телеметрія CPU/GPU
 - [x] Бігучий рядок
 - [x] Тест усіх сегментів
-- [ ] systemd user service для автозапуску
+- [x] systemd-сервіс (системний і user)
 - [ ] Автовизначення `hidraw` за VID/PID
 - [ ] Конфігураційний файл і прапорці CLI
 - [ ] Режими memory/frequency, якщо панель їх підтримує
@@ -284,6 +386,8 @@ PR-и з новими картами, шрифтами та режимами в�
 ## Ліцензія
 
 [MIT](LICENSE) © 2026 TaZ1kS
+
+Історія змін — у [`CHANGELOG.md`](CHANGELOG.md).
 
 <p align="center">
   <sub>Зроблено з ☕ та USB-сниффером. Якщо проєкт допоміг — постав зірку ⭐</sub>

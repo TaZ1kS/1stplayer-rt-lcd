@@ -7,8 +7,11 @@ basic Latin and a subset of Cyrillic letters.
 """
 import time
 import sys
+import os
 
-DEV_PATH = "/dev/hidraw3"
+DEV_PATH = "/dev/1stplayer-rt-lcd"
+if not os.path.exists(DEV_PATH):
+    DEV_PATH = "/dev/hidraw3"
 
 # Точна мапа 6 розрядів у ряд (зліва направо: CPU1-3, GPU1-3)
 DIGIT_NODES = ['CPU1', 'CPU2', 'CPU3', 'GPU1', 'GPU2', 'GPU3']

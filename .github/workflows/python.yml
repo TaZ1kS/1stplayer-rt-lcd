@@ -18,3 +18,5 @@ jobs:
           python-version: "3.x"
       - name: Compile scripts
         run: python -m py_compile scripts/lcd.py scripts/lcd_sym.py scripts/unlock.py
+      - name: Check shell scripts
+        run: bash -n install.sh uninstall.sh

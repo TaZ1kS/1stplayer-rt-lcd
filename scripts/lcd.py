@@ -3,15 +3,18 @@
 """Live CPU/GPU telemetry for the 1st Player RT5/RT7/RT9 case LCD.
 
 Reads temperatures and load from Linux sysfs/procfs and renders them into the
-64-byte HID report expected by the display. Run with the hidraw path as the
-first argument if your device is not /dev/hidraw3.
+64-byte HID report expected by the display. Defaults to the stable
+/dev/1stplayer-rt-lcd symlink and falls back to /dev/hidraw3. Pass an explicit
+path as the first argument to override it.
 """
 import time
 import sys
 import os
 import glob
 
-DEV_PATH = "/dev/hidraw3"
+DEV_PATH = "/dev/1stplayer-rt-lcd"
+if not os.path.exists(DEV_PATH):
+    DEV_PATH = "/dev/hidraw3"
 
 # Точна мапа 7-сегментних розрядів [A, B, C, D, E, F, G]
 SEGMENT_MAP = {
@@ -158,7 +161,7 @@ class SystemTelemetryLCD:
         buf[2] = 0x02
 
         # Увімкнення текстових ікон:
-        # Смужки зверху відповідають за USAGE, цифри — за температуру °C
+        # Цифри показують температуру °C, смужки — завантаження USAGE
         self._set_bit(buf, 41, 2) # CPU label
         self._set_bit(buf, 51, 2) # GPU label
         self._set_bit(buf, 43, 2) # CPU USAGE
