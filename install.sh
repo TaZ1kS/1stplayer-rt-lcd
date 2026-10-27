@@ -39,12 +39,19 @@ install -m 644 "${ROOT}"/assets/*.svg "${PREFIX}/assets/"
 install -m 644 "${ROOT}/udev/99-1stplayer-rt-lcd.rules" "${UDEV}"
 install -m 644 "${ROOT}/systemd/1stplayer-rt-lcd.service" "${UNIT}"
 
-udevadm control --reload-rules
-udevadm trigger
 systemctl daemon-reload
+
+# A udev problem must not prevent the service from being installed/enabled.
+if ! udevadm control --reload-rules; then
+    echo "Warning: could not reload udev rules" >&2
+fi
+if ! udevadm trigger --subsystem-match=hidraw; then
+    echo "Warning: could not trigger udev for hidraw" >&2
+fi
 
 if [[ ${INSTALL_SERVICE} -eq 1 ]]; then
     systemctl enable 1stplayer-rt-lcd.service
+    systemctl reset-failed 1stplayer-rt-lcd.service 2>/dev/null || true
     systemctl restart 1stplayer-rt-lcd.service
 fi
 

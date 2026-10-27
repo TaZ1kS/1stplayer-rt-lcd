@@ -1,13 +1,15 @@
 [Unit]
 Description=1st Player RT5/RT7/RT9 LCD CPU/GPU telemetry
 Documentation=https://github.com/TaZ1kS/1stplayer-rt-lcd
-After=dev-1stplayer\x2drt\x2dlcd.device
-Wants=dev-1stplayer\x2drt\x2dlcd.device
+# Do not order after a .device unit for /dev/1stplayer-rt-lcd: the device can
+# enumerate after multi-user.target, and a missing .device job blocks startup
+# for the default 90 s timeout. The script waits for the node itself (--wait).
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/1stplayer-rt-lcd
-ExecStart=/usr/bin/python3 /opt/1stplayer-rt-lcd/scripts/lcd.py /dev/1stplayer-rt-lcd
+ExecStart=/usr/bin/python3 /opt/1stplayer-rt-lcd/scripts/lcd.py --wait /dev/1stplayer-rt-lcd
 Restart=always
 RestartSec=3
 SyslogIdentifier=1stplayer-rt-lcd

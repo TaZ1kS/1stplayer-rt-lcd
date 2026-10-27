@@ -20,3 +20,12 @@ jobs:
         run: python -m py_compile scripts/lcd.py scripts/lcd_sym.py scripts/unlock.py
       - name: Check shell scripts
         run: bash -n install.sh uninstall.sh
+      - name: Verify systemd units
+        run: systemd-analyze verify systemd/1stplayer-rt-lcd.service systemd/1stplayer-rt-lcd.user.service
+      - name: Check boot start does not wait for a device unit
+        run: |
+          if grep -qE '^(After|Wants|Requires|BindsTo|Requisite)=.*\.device' systemd/1stplayer-rt-lcd.service; then
+            echo "Do not order the service after a .device unit; use the --wait mode instead." >&2
+            exit 1
+          fi
+          grep -q -- '--wait' systemd/1stplayer-rt-lcd.service

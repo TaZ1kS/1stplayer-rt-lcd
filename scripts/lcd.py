@@ -5,7 +5,9 @@
 Reads temperatures and load from Linux sysfs/procfs and renders them into the
 64-byte HID report expected by the display. The device is auto-detected via
 /dev/1stplayer-rt-lcd or USB ID 5131:2007; pass an explicit hidraw path as the
-first argument to override it.
+first argument to override it. --wait makes the script wait for the device to
+appear; the systemd service uses it because the USB display may enumerate after
+boot.
 """
 import time
 import sys
@@ -69,6 +71,34 @@ def find_lcd_device(explicit=None):
             lines.append("    Перевір, чи підключено USB-кабель дисплея.")
         lines.append("    Або встанови udev-правило: sudo ./install.sh")
     raise SystemExit("\n".join(lines))
+
+
+def wait_for_lcd_device(explicit=None, timeout=120.0, interval=2.0):
+    """Чекає, поки вузол дисплея з'явиться (режим systemd-сервісу)."""
+    deadline = time.monotonic() + timeout
+    announced = False
+    last_error = None
+
+    while True:
+        try:
+            node = find_lcd_device(explicit)
+        except SystemExit as exc:
+            last_error = exc
+        else:
+            if os.path.exists(node):
+                return node
+            last_error = SystemExit(
+                f"[!] Пристрій {node} не з'явився за {timeout:g} с.\n"
+                "    Перевір USB-кабель і udev-правило: sudo ./install.sh"
+            )
+
+        if not announced:
+            print(f"[i] Дисплей ще не готовий, чекаю до {timeout:g} с...", flush=True)
+            announced = True
+
+        if time.monotonic() >= deadline:
+            raise last_error
+        time.sleep(interval)
 
 # Точна мапа 7-сегментних розрядів [A, B, C, D, E, F, G]
 SEGMENT_MAP = {
@@ -266,7 +296,15 @@ class SystemTelemetryLCD:
             print(f"[!] Помилка запису в {self.dev_path}: {e}")
 
 def main():
-    dev_node = find_lcd_device(sys.argv[1] if len(sys.argv) > 1 else None)
+    args = sys.argv[1:]
+    wait = "--wait" in args
+    args = [arg for arg in args if arg != "--wait"]
+    explicit = args[0] if args else None
+    dev_node = (
+        wait_for_lcd_device(explicit)
+        if wait
+        else find_lcd_device(explicit)
+    )
     if os.path.exists(dev_node) and not os.access(dev_node, os.W_OK):
         raise SystemExit(
             f"[!] Немає доступу на запис до {dev_node}.\n"

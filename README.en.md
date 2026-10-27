@@ -124,6 +124,8 @@ The installer:
 3. installs `1stplayer-rt-lcd.service`;
 4. enables and starts the service.
 
+The service starts with `multi-user.target` and is not ordered after a `.device` unit for the symlink. `lcd.py --wait` waits up to 120 seconds for `/dev/1stplayer-rt-lcd`, so a slow USB display does not delay boot by 90 seconds or leave the panel blank. If the display does not appear, the service exits with an error and retries; `Restart=always` and `StartLimitIntervalSec=0` keep systemd trying.
+
 Check it:
 
 ```bash
@@ -188,6 +190,8 @@ systemctl --user daemon-reload
 
 > [!NOTE]
 > If `/dev/1stplayer-rt-lcd` does not appear, check the VID/PID in the udev rule, run `sudo udevadm control --reload-rules && sudo udevadm trigger`, and replug the display. The scripts can also find the device by USB ID without the symlink, but the service uses `/dev/1stplayer-rt-lcd` explicitly so it does not depend on the `hidrawN` ordering.
+>
+> If the service takes a long time to start after a reboot, check `systemctl cat 1stplayer-rt-lcd.service`: versions before v1.1.1 contained `After=`/`Wants=` for `dev-1stplayer\x2drt\x2dlcd.device`. When the symlink device unit failed to activate, systemd waited for the 90-second timeout. Update with `git pull && sudo ./install.sh`.
 
 ## Scripts
 
@@ -202,6 +206,8 @@ systemctl --user daemon-reload
 ```bash
 python3 scripts/lcd.py
 ```
+
+For systemd there is a wait mode: `python3 scripts/lcd.py --wait /dev/1stplayer-rt-lcd`. It waits up to 120 seconds for the node to appear; the unit file uses this mode.
 
 Sensor discovery:
 

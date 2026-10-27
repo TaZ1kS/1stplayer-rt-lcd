@@ -109,6 +109,8 @@ python3 scripts/lcd.py
 python3 scripts/lcd.py /dev/hidraw5
 ```
 
+Для systemd є режим очікування: `python3 scripts/lcd.py --wait /dev/1stplayer-rt-lcd`. Він чекає до 120 секунд, поки вузол з'явиться; саме цей режим використовує unit-файл.
+
 Скрипт сам знаходить сенсори:
 
 | Метрика | Джерело |
@@ -204,6 +206,8 @@ sudo ./install.sh
 3. встановлює unit `1stplayer-rt-lcd.service`;
 4. вмикає автозапуск і запускає сервіс.
 
+Сервіс стартує разом із `multi-user.target` і не прив'язаний до `.device`-юніта symlink. `lcd.py --wait` сам чекає на появу `/dev/1stplayer-rt-lcd` до 120 секунд, тому пізня ініціалізація USB-дисплея не затримує завантаження на 90 секунд і не залишає панель порожньою. Якщо пристрій не з'явився за цей час, сервіс завершується з помилкою і повторює спробу — `Restart=always` та `StartLimitIntervalSec=0` не дають systemd здатися.
+
 Перевірка:
 
 ```bash
@@ -278,6 +282,8 @@ systemctl --user daemon-reload
 
 > [!NOTE]
 > Якщо `/dev/1stplayer-rt-lcd` не з'явився, перевір VID/PID у udev-правилі, виконай `sudo udevadm control --reload-rules && sudo udevadm trigger` і перепідключи кабель дисплея. Скрипти вміють знаходити пристрій за USB ID і без symlink, але сервіс явно використовує `/dev/1stplayer-rt-lcd`, щоб не залежати від порядку `hidrawN`.
+>
+> Якщо після перезавантаження сервіс довго не запускається, перевір `systemctl cat 1stplayer-rt-lcd.service`: у версіях до v1.1.1 там були `After=`/`Wants=` для `dev-1stplayer\x2drt\x2dlcd.device`. Якщо symlink-юніт не активувався, systemd чекав 90 секунд таймауту. Оновися через `git pull && sudo ./install.sh`.
 
 ## Протокол кадру
 

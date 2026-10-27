@@ -3,11 +3,12 @@ Description=1st Player RT5/RT7/RT9 LCD CPU/GPU telemetry (user)
 Documentation=https://github.com/TaZ1kS/1stplayer-rt-lcd
 After=graphical-session.target
 PartOf=graphical-session.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/1stplayer-rt-lcd
-ExecStart=/usr/bin/python3 /opt/1stplayer-rt-lcd/scripts/lcd.py /dev/1stplayer-rt-lcd
+ExecStart=/usr/bin/python3 /opt/1stplayer-rt-lcd/scripts/lcd.py --wait /dev/1stplayer-rt-lcd
 Restart=on-failure
 RestartSec=3
 SyslogIdentifier=1stplayer-rt-lcd
