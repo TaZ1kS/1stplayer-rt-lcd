@@ -220,6 +220,8 @@ Sensor discovery:
 
 Temperatures use three digits; load uses a 10-segment bar (~10% per segment). Missing sensors fall back to `0`. `gpu_busy_percent` is AMD-specific; NVIDIA load is not supported by this script.
 
+Sensors are re-checked at runtime. If the service started before `amdgpu` registered its `hwmon` or `gpu_busy_percent` node, the GPU values appear without restarting the service. The same retry recovers a sensor path that became stale after a GPU reset.
+
 ### `lcd_sym.py`
 
 ```bash

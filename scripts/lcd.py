@@ -168,26 +168,41 @@ class SystemTelemetryLCD:
         return None
 
     def _find_gpu_temp_file(self):
-        """Шукає датчик температури GPU AMD Radeon"""
-        for card in glob.glob('/sys/class/drm/card*/device/hwmon/hwmon*'):
-            temp_input = os.path.join(card, 'temp1_input')
+        """Шукає датчик температури GPU (AMD Radeon)."""
+        for temp_input in sorted(glob.glob('/sys/class/drm/card*/device/hwmon/hwmon*/temp1_input')):
             if os.path.exists(temp_input):
                 return temp_input
-        for hwmon in glob.glob('/sys/class/hwmon/hwmon*'):
+        for hwmon in sorted(glob.glob('/sys/class/hwmon/hwmon*')):
             name_file = os.path.join(hwmon, 'name')
             if os.path.exists(name_file):
                 with open(name_file, 'r') as f:
                     if f.read().strip() == 'amdgpu':
-                        return os.path.join(hwmon, 'temp1_input')
+                        temp_input = os.path.join(hwmon, 'temp1_input')
+                        if os.path.exists(temp_input):
+                            return temp_input
         return None
 
     def _find_gpu_busy_file(self):
-        """Шукає вузол завантаження GPU AMD Radeon"""
-        for i in range(4):
-            path = f"/sys/class/drm/card{i}/device/gpu_busy_percent"
+        """Шукає вузол завантаження GPU AMD Radeon."""
+        for path in sorted(glob.glob('/sys/class/drm/card*/device/gpu_busy_percent')):
             if os.path.exists(path):
                 return path
         return None
+
+    def refresh_sensors(self):
+        """Повторно шукає сенсори, які з'явилися після старту сервісу."""
+        if not self.cpu_temp_file:
+            self.cpu_temp_file = self._find_cpu_temp_file()
+            if self.cpu_temp_file:
+                print(f"[i] CPU Temp file: {self.cpu_temp_file}", flush=True)
+        if not self.gpu_temp_file:
+            self.gpu_temp_file = self._find_gpu_temp_file()
+            if self.gpu_temp_file:
+                print(f"[i] GPU Temp file: {self.gpu_temp_file}", flush=True)
+        if not self.gpu_busy_file:
+            self.gpu_busy_file = self._find_gpu_busy_file()
+            if self.gpu_busy_file:
+                print(f"[i] GPU Busy file: {self.gpu_busy_file}", flush=True)
 
     # --- ЗЧИТУВАННЯ МЕТРИК ---
     def get_cpu_usage(self) -> int:
@@ -217,6 +232,7 @@ class SystemTelemetryLCD:
             with open(self.cpu_temp_file, 'r') as f:
                 return int(int(f.read().strip()) / 1000)
         except Exception:
+            self.cpu_temp_file = None
             return 0
 
     def get_gpu_usage(self) -> int:
@@ -226,6 +242,7 @@ class SystemTelemetryLCD:
             with open(self.gpu_busy_file, 'r') as f:
                 return max(0, min(100, int(f.read().strip())))
         except Exception:
+            self.gpu_busy_file = None
             return 0
 
     def get_gpu_temp(self) -> int:
@@ -235,6 +252,7 @@ class SystemTelemetryLCD:
             with open(self.gpu_temp_file, 'r') as f:
                 return int(int(f.read().strip()) / 1000)
         except Exception:
+            self.gpu_temp_file = None
             return 0
 
     # --- ОНОВЛЕННЯ ДИСПЛЕЯ ---
@@ -324,6 +342,7 @@ def main():
 
     try:
         while True:
+            monitor.refresh_sensors()
             c_temp = monitor.get_cpu_temp()
             c_usage = monitor.get_cpu_usage()
             g_temp = monitor.get_gpu_temp()

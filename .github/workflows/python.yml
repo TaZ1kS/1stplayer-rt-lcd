@@ -20,6 +20,8 @@ jobs:
         run: python -m py_compile scripts/lcd.py scripts/lcd_sym.py scripts/unlock.py
       - name: Check shell scripts
         run: bash -n install.sh uninstall.sh
+      - name: Test late GPU sensor detection
+        run: python tests/test_sensors.py
       - name: Verify systemd units
         run: systemd-analyze verify systemd/1stplayer-rt-lcd.service systemd/1stplayer-rt-lcd.user.service
       - name: Check boot start does not wait for a device unit
