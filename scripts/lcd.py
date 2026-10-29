@@ -10,7 +10,7 @@ appear; the systemd service uses it because the USB display may enumerate after
 boot. On start and stop the panel plays a short animation: one shared outline
 can fill around all six digits (default) or the digits can fill one by one;
 choose it with --anim parallel|sequence|off or ANIMATION= in
-/etc/1stplayer-rt-lcd.conf.
+/etc/1stplayer-rt-lcd.conf. Shutdown uses a 0.4 s frame budget.
 """
 import time
 import sys
@@ -158,6 +158,10 @@ CONFIG_PATH = "/etc/1stplayer-rt-lcd.conf"
 DEFAULT_ANIMATION = "parallel"
 ANIMATION_MODES = ("parallel", "sequence", "off")
 
+# Анімація зупинки має вкладатися у 0,5 с разом із записом кадрів.
+SHUTDOWN_BUDGET = 0.40
+SHUTDOWN_MAX_FRAMES = 20
+
 
 def read_animation_config(path=CONFIG_PATH):
     """Читає ANIMATION=... з конфігураційного файлу інсталятора."""
@@ -262,17 +266,15 @@ class SystemTelemetryLCD:
                 b_idx, bit_i = SEGMENT_MAP[digit_name][seg_i]
                 self._set_bit(buf, b_idx, bit_i)
 
-    def _compose(self, digits=None, cpu_bars=0, gpu_bars=0, labels=(), reverse_bars=False):
+    def _compose(self, digits=None, cpu_bars=0, gpu_bars=0, labels=()):
         """Збирає кадр із цифр, смужок і підписів; seq додає _write_frame."""
         buf = bytearray(64)
-        cpu_bar = BAR_CPU[::-1] if reverse_bars else BAR_CPU
-        gpu_bar = BAR_GPU[::-1] if reverse_bars else BAR_GPU
         for name, mask in (digits or {}).items():
             self._set_digit(buf, name, mask)
         for i in range(min(10, max(0, cpu_bars))):
-            self._set_bit(buf, *cpu_bar[i])
+            self._set_bit(buf, *BAR_CPU[i])
         for i in range(min(10, max(0, gpu_bars))):
-            self._set_bit(buf, *gpu_bar[i])
+            self._set_bit(buf, *BAR_GPU[i])
         for addr in labels:
             self._set_bit(buf, *addr)
         return buf
@@ -414,15 +416,13 @@ class SystemTelemetryLCD:
         self._write_frame(self._compose())
 
     # --- АНІМАЦІЯ СТАРТУ / ЗУПИНКИ ---
-    def _sequence_fill_frames(self, reverse=False):
+    def _sequence_fill_frames(self):
         """Цифри заповнюються по одній, обидві смужки — паралельно."""
-        order = list(reversed(DIGIT_ORDER)) if reverse else DIGIT_ORDER
-        ring = list(reversed(DIGIT_RING)) if reverse else DIGIT_RING
         lit = {}
-        for name in order:
-            for count in range(1, len(ring) + 1):
+        for name in DIGIT_ORDER:
+            for count in range(1, len(DIGIT_RING) + 1):
                 mask = [0] * 7
-                for seg_i in ring[:count]:
+                for seg_i in DIGIT_RING[:count]:
                     mask[seg_i] = 1
                 frame_digits = dict(lit)
                 frame_digits[name] = mask
@@ -431,25 +431,22 @@ class SystemTelemetryLCD:
             yield self._compose(lit)
         for count in range(1, 11):
             labels = LABEL_BITS if count == 10 else ()
-            yield self._compose(lit, count, count, labels, reverse_bars=reverse)
+            yield self._compose(lit, count, count, labels)
 
-    def _parallel_fill_frames(self, reverse=False):
+    def _parallel_fill_frames(self):
         """Єдиний контур навколо всіх шести цифр заповнюється по колу."""
-        path = list(reversed(PERIMETER_PATH)) if reverse else PERIMETER_PATH
-        for step in range(1, len(path) + 1):
+        for step in range(1, len(PERIMETER_PATH) + 1):
             digits = {}
-            for name, seg_i in path[:step]:
+            for name, seg_i in PERIMETER_PATH[:step]:
                 digits.setdefault(name, [0] * 7)[seg_i] = 1
-            labels = LABEL_BITS if step == len(path) else ()
-            bars = 10 * step // len(path)
-            yield self._compose(
-                digits, bars, bars, labels, reverse_bars=reverse
-            )
+            labels = LABEL_BITS if step == len(PERIMETER_PATH) else ()
+            bars = 10 * step // len(PERIMETER_PATH)
+            yield self._compose(digits, bars, bars, labels)
 
-    def _fill_frames(self, reverse=False):
+    def _fill_frames(self):
         if self.animation == "parallel":
-            return self._parallel_fill_frames(reverse)
-        return self._sequence_fill_frames(reverse)
+            return self._parallel_fill_frames()
+        return self._sequence_fill_frames()
 
     def _full_frame(self):
         digits = {name: list(DIGIT_FULL) for name in DIGIT_ORDER}
@@ -475,41 +472,31 @@ class SystemTelemetryLCD:
         self._write_frame(self._compose())
         time.sleep(0.14)
 
+    def _shutdown_frames(self):
+        """Швидке згортання: короткий спалах, далі контур/цифри гаснуть."""
+        drain = list(self._fill_frames())
+        drain.reverse()
+        frames = [self._full_frame()] + drain[1:]
+        if len(frames) > SHUTDOWN_MAX_FRAMES:
+            last = len(frames) - 1
+            picks = {
+                round(i * last / (SHUTDOWN_MAX_FRAMES - 1))
+                for i in range(SHUTDOWN_MAX_FRAMES)
+            }
+            frames = [frames[i] for i in sorted(picks)]
+        return frames
+
     def play_shutdown_animation(self):
-        """Повторює коло у зворотному напрямку, блимає і плавно гасить панель."""
+        """Швидко гасить панель; уся анімація — не довше 0,5 с."""
         if self.animation == "off":
             self.clear_display()
             return
         print("[*] Анімація вимкнення...", flush=True)
-        self._write_frame(self._compose())
-        time.sleep(0.08)
-        delay = 0.060 if self.animation == "parallel" else 0.030
-        if not self._play(self._fill_frames(reverse=True), delay):
+        frames = self._shutdown_frames()
+        delay = SHUTDOWN_BUDGET / len(frames)
+        if not self._play(frames, delay):
             self.clear_display()
             return
-        self._write_frame(self._full_frame())
-        time.sleep(0.25)
-        self._write_frame(self._compose())
-        time.sleep(0.12)
-        self._write_frame(self._full_frame())
-        time.sleep(0.18)
-
-        if self.animation == "parallel":
-            # Той самий ряд кадрів у зворотному порядку: цифри й смужки гаснуть разом.
-            drain = list(self._parallel_fill_frames())
-            drain.reverse()
-            if not self._play(drain[1:], 0.055):
-                self.clear_display()
-                return
-        else:
-            # Послідовний режим: цифри гаснуть справа наліво, смужки тануть разом.
-            lit = {name: list(DIGIT_FULL) for name in DIGIT_ORDER}
-            for remaining in range(len(DIGIT_ORDER) - 1, -1, -1):
-                del lit[DIGIT_ORDER[remaining]]
-                bars = round(10 * remaining / len(DIGIT_ORDER))
-                labels = LABEL_BITS if remaining else ()
-                self._write_frame(self._compose(dict(lit), bars, bars, labels))
-                time.sleep(0.07)
         self.clear_display()
 
 def main():

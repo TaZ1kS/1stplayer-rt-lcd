@@ -142,6 +142,27 @@ def test_off(mod):
         print("off mode: OK")
 
 
+def test_shutdown_budget(mod):
+    delays = []
+    sleep = mod.time.sleep
+    mod.time.sleep = delays.append
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "lcd.bin"
+            out.write_bytes(b"")
+            for mode in ("parallel", "sequence"):
+                delays.clear()
+                monitor = mod.SystemTelemetryLCD(str(out), animation=mode)
+                monitor.play_shutdown_animation()
+                total = sum(delays)
+                assert len(delays) <= mod.SHUTDOWN_MAX_FRAMES
+                assert total <= mod.SHUTDOWN_BUDGET + 1e-9, (mode, total)
+                assert total <= 0.5, f"{mode}: shutdown took {total:.3f}s"
+    finally:
+        mod.time.sleep = sleep
+    print("shutdown timing: OK")
+
+
 def test_cli(mod):
     with tempfile.TemporaryDirectory() as tmp:
         config = pathlib.Path(tmp) / "1stplayer-rt-lcd.conf"
@@ -172,6 +193,7 @@ def test_cli(mod):
 
 def main():
     mod = load_lcd()
+    test_shutdown_budget(mod)
     mod.time.sleep = lambda _seconds: None
     test_parallel(mod)
     test_sequence(mod)
