@@ -235,7 +235,7 @@ On start, `lcd.py` plays a short greeting. The style is chosen in the `install.s
 | `sequence` | digits fill one by one from left to right, then both bars grow in parallel |
 | `off` | no animation; the panel is cleared on exit |
 
-On stop (`SIGTERM` from systemd or `Ctrl+C`) the outline/digits quickly collapse in reverse. The shutdown animation has a 0.4 s budget and never exceeds 0.5 s, so `systemctl stop` and `systemctl restart` stay responsive.
+On stop (`SIGTERM` from systemd or `Ctrl+C`) the outline/digits quickly collapse in reverse. The shutdown animation has a 0.4 s budget, accounts for the actual hidraw write latency and never exceeds 0.5 s, so `systemctl stop` and `systemctl restart` stay responsive.
 
 You can change the mode without reinstalling: edit `ANIMATION=` in `/etc/1stplayer-rt-lcd.conf` and restart the service. Or pass the mode directly:
 

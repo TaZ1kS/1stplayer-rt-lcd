@@ -10,7 +10,8 @@ appear; the systemd service uses it because the USB display may enumerate after
 boot. On start and stop the panel plays a short animation: one shared outline
 can fill around all six digits (default) or the digits can fill one by one;
 choose it with --anim parallel|sequence|off or ANIMATION= in
-/etc/1stplayer-rt-lcd.conf. Shutdown uses a 0.4 s frame budget.
+/etc/1stplayer-rt-lcd.conf. Shutdown adapts to hidraw write latency and
+stays under 0.5 s.
 """
 import time
 import sys
@@ -159,7 +160,10 @@ DEFAULT_ANIMATION = "parallel"
 ANIMATION_MODES = ("parallel", "sequence", "off")
 
 # Анімація зупинки має вкладатися у 0,5 с разом із записом кадрів.
+# Реальний hidraw-запис на цій панелі повільний, тому кадри не пишуться
+# наосліп: перед кожним наступним кадром перевіряється дедлайн.
 SHUTDOWN_BUDGET = 0.40
+SHUTDOWN_RESERVE = 0.08
 SHUTDOWN_MAX_FRAMES = 20
 
 
@@ -486,6 +490,19 @@ class SystemTelemetryLCD:
             frames = [frames[i] for i in sorted(picks)]
         return frames
 
+    def _play_shutdown_frames(self, frames):
+        """Пише кадри, доки не вичерпано дедлайн; False — помилка запису."""
+        deadline = time.monotonic() + SHUTDOWN_BUDGET - SHUTDOWN_RESERVE
+        estimate = 0.0
+        for frame in frames:
+            if estimate and time.monotonic() + estimate > deadline:
+                break
+            started = time.monotonic()
+            if not self._write_frame(frame):
+                return False
+            estimate = max(time.monotonic() - started, 0.001)
+        return True
+
     def play_shutdown_animation(self):
         """Швидко гасить панель; уся анімація — не довше 0,5 с."""
         if self.animation == "off":
@@ -493,8 +510,7 @@ class SystemTelemetryLCD:
             return
         print("[*] Анімація вимкнення...", flush=True)
         frames = self._shutdown_frames()
-        delay = SHUTDOWN_BUDGET / len(frames)
-        if not self._play(frames, delay):
+        if not self._play_shutdown_frames(frames):
             self.clear_display()
             return
         self.clear_display()

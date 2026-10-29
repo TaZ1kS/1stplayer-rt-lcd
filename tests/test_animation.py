@@ -143,23 +143,47 @@ def test_off(mod):
 
 
 def test_shutdown_budget(mod):
-    delays = []
-    sleep = mod.time.sleep
-    mod.time.sleep = delays.append
+    real_monotonic = mod.time.monotonic
+    real_sleep = mod.time.sleep
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            out = pathlib.Path(tmp) / "lcd.bin"
-            out.write_bytes(b"")
-            for mode in ("parallel", "sequence"):
-                delays.clear()
-                monitor = mod.SystemTelemetryLCD(str(out), animation=mode)
-                monitor.play_shutdown_animation()
-                total = sum(delays)
-                assert len(delays) <= mod.SHUTDOWN_MAX_FRAMES
-                assert total <= mod.SHUTDOWN_BUDGET + 1e-9, (mode, total)
-                assert total <= 0.5, f"{mode}: shutdown took {total:.3f}s"
+        # Simulate a slow hidraw node: every write blocks for a while.
+        for write_time in (0.05, 0.075, 0.10, 0.15, 0.20):
+            clock = [0.0]
+            mod.time.monotonic = lambda clock=clock: clock[0]
+            mod.time.sleep = lambda seconds, clock=clock: clock.__setitem__(
+                0, clock[0] + seconds
+            )
+            with tempfile.TemporaryDirectory() as tmp:
+                out = pathlib.Path(tmp) / "lcd.bin"
+                out.write_bytes(b"")
+                for mode in ("parallel", "sequence"):
+                    clock[0] = 0.0
+                    monitor = mod.SystemTelemetryLCD(str(out), animation=mode)
+                    write_frame = monitor._write_frame
+                    writes = [0]
+
+                    def slow_write(
+                        frame,
+                        write_frame=write_frame,
+                        clock=clock,
+                        write_time=write_time,
+                        writes=writes,
+                    ):
+                        ok = write_frame(frame)
+                        clock[0] += write_time
+                        writes[0] += 1
+                        return ok
+
+                    monitor._write_frame = slow_write
+                    monitor.play_shutdown_animation()
+                    assert writes[0] > 1, f"{mode}: no shutdown animation"
+                    assert clock[0] <= 0.5, (
+                        f"{mode} at {write_time:.3f}s/write: "
+                        f"{clock[0]:.3f}s"
+                    )
     finally:
-        mod.time.sleep = sleep
+        mod.time.monotonic = real_monotonic
+        mod.time.sleep = real_sleep
     print("shutdown timing: OK")
 
 
