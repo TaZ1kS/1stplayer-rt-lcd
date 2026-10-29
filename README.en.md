@@ -231,7 +231,7 @@ On start, `lcd.py` plays a short greeting. The style is chosen in the `install.s
 
 | Mode | What happens |
 |---|---|
-| `parallel` (default) | all six digits fill around their perimeter at the same time (segments `A`→`F`, then the centre `G`), while both load bars grow in parallel with them; all labels flash and the panel blinks once at the end |
+| `parallel` (default) | one shared outline around the whole panel fills clockwise: the upper-left edge of `CPU1` → the top edges of all six digits → both right edges of `GPU3` → the bottom edges back → the lower-left edge of `CPU1`; both bars grow in parallel with the outline, then all labels flash and the panel blinks once |
 | `sequence` | digits fill one by one from left to right, then both bars grow in parallel |
 | `off` | no animation; the panel is cleared on exit |
 
@@ -348,7 +348,7 @@ The scripts write to the selected hidraw node. Make sure it is the display, not 
 - [x] Scrolling text
 - [x] All-segments stress test
 - [x] Startup/shutdown panel animation
-- [x] Parallel fill of all six digits and both bars
+- [x] One shared outline around the whole panel + bars
 - [x] Animation style selection in the installer TUI
 - [x] Config file and CLI flags
 - [x] systemd service (system and user)

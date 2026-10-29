@@ -61,7 +61,7 @@ choose_animation_tui() {
         if ! choice=$(whiptail --title "1st Player RT LCD" \
             --default-item "${current}" \
             --menu "Animation style:" 18 84 3 \
-            "parallel" "All 6 digits fill around the perimeter together + bars in parallel (recommended)" \
+            "parallel" "One shared outline around all 6 digits; bars in parallel (recommended)" \
             "sequence" "Digits fill one by one from left to right + bars in parallel" \
             "off"      "No animation (the panel is cleared on exit)" \
             3>&1 1>&2 2>&3); then
@@ -72,7 +72,7 @@ choose_animation_tui() {
         if ! choice=$(dialog --stdout --title "1st Player RT LCD" \
             --default-item "${current}" \
             --menu "Animation style:" 18 84 3 \
-            "parallel" "All 6 digits fill around the perimeter together + bars in parallel (recommended)" \
+            "parallel" "One shared outline around all 6 digits; bars in parallel (recommended)" \
             "sequence" "Digits fill one by one from left to right + bars in parallel" \
             "off"      "No animation (the panel is cleared on exit)"); then
             echo "Cancelled." >&2
@@ -81,7 +81,7 @@ choose_animation_tui() {
     else
         echo
         echo "Animation style:"
-        echo "  1) parallel  all 6 digits fill around the perimeter together, bars in parallel (recommended)"
+        echo "  1) parallel  one shared outline around all 6 digits, bars in parallel (recommended)"
         echo "  2) sequence  digits fill one by one, bars in parallel"
         echo "  3) off       no animation"
         while true; do

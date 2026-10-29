@@ -58,29 +58,53 @@ def check_full_frame(frames, label):
     ), f"{label}: no all-segments frame"
 
 
+def lit_segments(frame, mod):
+    return {
+        (name, seg)
+        for name in mod.DIGIT_ORDER
+        for seg in range(len(mod.SEGMENT_MAP[name]))
+        if has_bit(frame, mod.SEGMENT_MAP[name][seg])
+    }
+
+
 def test_parallel(mod):
     frames, startup_count = run_animation(mod, "parallel")
     startup = frames[:startup_count]
     shutdown = frames[startup_count:]
+    path = [tuple(item) for item in mod.PERIMETER_PATH]
 
-    # Every digit and both bars start filling on the very first frame.
-    for name in mod.DIGIT_ORDER:
-        assert has_bit(startup[0], mod.SEGMENT_MAP[name][0]), name
-    assert has_bit(startup[0], mod.BAR_CPU[0])
-    assert has_bit(startup[0], mod.BAR_GPU[0])
+    # One shared outline: tops of all digits, two right edges of GPU3,
+    # bottoms of all digits, and two left edges of CPU1. No inner G.
+    assert len(path) == 16
+    assert sum(1 for _, seg in path if seg == 0) == 6
+    assert sum(1 for _, seg in path if seg == 3) == 6
+    assert {name for name, seg in path if seg in (1, 2)} == {"GPU3"}
+    assert {name for name, seg in path if seg in (4, 5)} == {"CPU1"}
+    assert all(seg != 6 for _, seg in path)
 
-    # Six ring segments are all on together; G is added on the next step.
-    for name in mod.DIGIT_ORDER:
-        assert has_bit(startup[5], mod.SEGMENT_MAP[name][5])
-        assert not has_bit(startup[5], mod.SEGMENT_MAP[name][6])
-        assert has_bit(startup[6], mod.SEGMENT_MAP[name][6])
+    # Each fill frame adds exactly one segment of the shared outline; both
+    # bars grow in parallel with the outline and never light inner segments.
+    fill = startup[: len(path)]
+    for step, frame in enumerate(fill, 1):
+        assert lit_segments(frame, mod) == set(path[:step]), step
+        bars = 10 * step // len(path)
+        for bar in (mod.BAR_CPU, mod.BAR_GPU):
+            assert all(has_bit(frame, addr) for addr in bar[:bars]), step
+            assert not any(has_bit(frame, addr) for addr in bar[bars:]), step
+
+    # The flash after the outline lights every digit, including G.
+    assert lit_segments(startup[len(path)], mod) == {
+        (name, seg)
+        for name in mod.DIGIT_ORDER
+        for seg in range(len(mod.SEGMENT_MAP[name]))
+    }
 
     check_frames(frames)
     check_full_frame(startup, "parallel startup")
     check_full_frame(shutdown, "parallel shutdown")
     assert startup[-1][3:] == bytes(61), "startup did not end on a blank frame"
     assert shutdown[-1][3:] == bytes(61), "shutdown did not clear the panel"
-    print("parallel animation: OK")
+    print("parallel outline animation: OK")
 
 
 def test_sequence(mod):

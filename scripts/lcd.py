@@ -7,9 +7,10 @@ Reads temperatures and load from Linux sysfs/procfs and renders them into the
 /dev/1stplayer-rt-lcd or USB ID 5131:2007; pass an explicit hidraw path as the
 first argument to override it. --wait makes the script wait for the device to
 appear; the systemd service uses it because the USB display may enumerate after
-boot. On start and stop the panel plays a short animation: all six digits can
-fill in parallel (default) or one by one; choose it with
---anim parallel|sequence|off or ANIMATION= in /etc/1stplayer-rt-lcd.conf.
+boot. On start and stop the panel plays a short animation: one shared outline
+can fill around all six digits (default) or the digits can fill one by one;
+choose it with --anim parallel|sequence|off or ANIMATION= in
+/etc/1stplayer-rt-lcd.conf.
 """
 import time
 import sys
@@ -137,6 +138,17 @@ BAR_GPU = [(49,0), (51,0), (40,7), (42,7), (44,7), (47,0), (52,7), (50,7), (48,7
 DIGIT_ORDER = ['CPU1', 'CPU2', 'CPU3', 'GPU1', 'GPU2', 'GPU3']
 DIGIT_RING = [0, 1, 2, 3, 4, 5]
 DIGIT_FULL = [1, 1, 1, 1, 1, 1, 1]
+
+# Контур усієї панелі: ліва верхня грань CPU1, верхні грані всіх шести цифр,
+# дві праві грані GPU3, нижні грані у зворотному напрямку і ліва нижня грань
+# CPU1. Середні вертикалі та центральні G у контур не входять.
+PERIMETER_PATH = (
+    [('CPU1', 5)]
+    + [(name, 0) for name in DIGIT_ORDER]
+    + [('GPU3', 1), ('GPU3', 2)]
+    + [(name, 3) for name in reversed(DIGIT_ORDER)]
+    + [('CPU1', 4)]
+)
 
 # Підписи, які використовує телеметрія.
 LABEL_BITS = [(41, 2), (51, 2), (43, 2), (47, 2), (45, 1), (47, 1)]
@@ -422,19 +434,16 @@ class SystemTelemetryLCD:
             yield self._compose(lit, count, count, labels, reverse_bars=reverse)
 
     def _parallel_fill_frames(self, reverse=False):
-        """Усі шість цифр і обидві смужки заповнюються одночасно."""
-        ring = list(reversed(DIGIT_RING)) if reverse else DIGIT_RING
-        for count in range(1, 11):
-            if count <= len(ring):
-                mask = [0] * 7
-                for seg_i in ring[:count]:
-                    mask[seg_i] = 1
-            else:
-                mask = list(DIGIT_FULL)
-            digits = {name: list(mask) for name in DIGIT_ORDER}
-            labels = LABEL_BITS if count == 10 else ()
+        """Єдиний контур навколо всіх шести цифр заповнюється по колу."""
+        path = list(reversed(PERIMETER_PATH)) if reverse else PERIMETER_PATH
+        for step in range(1, len(path) + 1):
+            digits = {}
+            for name, seg_i in path[:step]:
+                digits.setdefault(name, [0] * 7)[seg_i] = 1
+            labels = LABEL_BITS if step == len(path) else ()
+            bars = 10 * step // len(path)
             yield self._compose(
-                digits, count, count, labels, reverse_bars=reverse
+                digits, bars, bars, labels, reverse_bars=reverse
             )
 
     def _fill_frames(self, reverse=False):
