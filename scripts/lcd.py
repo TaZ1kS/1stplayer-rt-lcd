@@ -7,8 +7,9 @@ Reads temperatures and load from Linux sysfs/procfs and renders them into the
 /dev/1stplayer-rt-lcd or USB ID 5131:2007; pass an explicit hidraw path as the
 first argument to override it. --wait makes the script wait for the device to
 appear; the systemd service uses it because the USB display may enumerate after
-boot. On start and stop the panel plays a short circular light animation;
---no-anim skips it.
+boot. On start and stop the panel plays a short animation: all six digits can
+fill in parallel (default) or one by one; choose it with
+--anim parallel|sequence|off or ANIMATION= in /etc/1stplayer-rt-lcd.conf.
 """
 import time
 import sys
@@ -140,10 +141,92 @@ DIGIT_FULL = [1, 1, 1, 1, 1, 1, 1]
 # Підписи, які використовує телеметрія.
 LABEL_BITS = [(41, 2), (51, 2), (43, 2), (47, 2), (45, 1), (47, 1)]
 
+# --- НАЛАШТУВАННЯ АНІМАЦІЇ ---
+CONFIG_PATH = "/etc/1stplayer-rt-lcd.conf"
+DEFAULT_ANIMATION = "parallel"
+ANIMATION_MODES = ("parallel", "sequence", "off")
+
+
+def read_animation_config(path=CONFIG_PATH):
+    """Читає ANIMATION=... з конфігураційного файлу інсталятора."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.split("#", 1)[0].strip()
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key.strip().lower() != "animation":
+                    continue
+                value = value.strip().strip("\"'").lower()
+                if value in ANIMATION_MODES:
+                    return value
+                print(
+                    f"[!] Невідомий режим анімації у {path}: {value!r}; "
+                    f"використовую {DEFAULT_ANIMATION}.",
+                    file=sys.stderr,
+                )
+                return None
+    except OSError:
+        pass
+    return None
+
+
+def parse_args(argv, config_path=CONFIG_PATH):
+    """Розбирає --wait, --anim MODE, --no-anim і явний шлях до пристрою."""
+    wait = False
+    animation = None
+    explicit = None
+    i = 0
+
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--wait":
+            wait = True
+        elif arg == "--no-anim":
+            animation = "off"
+        elif arg in ("--anim", "--animation"):
+            i += 1
+            if i >= len(argv):
+                raise SystemExit(
+                    f"[!] {arg} потребує значення: {', '.join(ANIMATION_MODES)}"
+                )
+            animation = argv[i]
+        elif arg.startswith("--anim="):
+            animation = arg.split("=", 1)[1]
+        elif arg.startswith("--animation="):
+            animation = arg.split("=", 1)[1]
+        elif arg in ("-h", "--help"):
+            print(
+                "Usage: lcd.py [--wait] [--anim parallel|sequence|off] "
+                "[--no-anim] [DEVICE]"
+            )
+            raise SystemExit(0)
+        elif arg.startswith("-"):
+            raise SystemExit(f"[!] Невідомий параметр: {arg}")
+        elif explicit is None:
+            explicit = arg
+        else:
+            raise SystemExit(f"[!] Зайвий аргумент: {arg}")
+        i += 1
+
+    if animation is None:
+        animation = read_animation_config(config_path) or DEFAULT_ANIMATION
+    else:
+        animation = animation.lower()
+
+    if animation not in ANIMATION_MODES:
+        raise SystemExit(
+            f"[!] Невідомий режим анімації: {animation!r}.\n"
+            f"    Доступні: {', '.join(ANIMATION_MODES)}"
+        )
+    return wait, animation, explicit
+
 
 class SystemTelemetryLCD:
-    def __init__(self, dev_path=None):
+    def __init__(self, dev_path=None, animation=DEFAULT_ANIMATION):
         self.dev_path = dev_path or find_lcd_device()
+        self.animation = animation if animation in ANIMATION_MODES else DEFAULT_ANIMATION
         self.seq_id = 0x61
         self.prev_idle = 0
         self.prev_total = 0
@@ -167,15 +250,17 @@ class SystemTelemetryLCD:
                 b_idx, bit_i = SEGMENT_MAP[digit_name][seg_i]
                 self._set_bit(buf, b_idx, bit_i)
 
-    def _compose(self, digits=None, cpu_bars=0, gpu_bars=0, labels=()):
+    def _compose(self, digits=None, cpu_bars=0, gpu_bars=0, labels=(), reverse_bars=False):
         """Збирає кадр із цифр, смужок і підписів; seq додає _write_frame."""
         buf = bytearray(64)
+        cpu_bar = BAR_CPU[::-1] if reverse_bars else BAR_CPU
+        gpu_bar = BAR_GPU[::-1] if reverse_bars else BAR_GPU
         for name, mask in (digits or {}).items():
             self._set_digit(buf, name, mask)
         for i in range(min(10, max(0, cpu_bars))):
-            self._set_bit(buf, *BAR_CPU[i])
+            self._set_bit(buf, *cpu_bar[i])
         for i in range(min(10, max(0, gpu_bars))):
-            self._set_bit(buf, *BAR_GPU[i])
+            self._set_bit(buf, *gpu_bar[i])
         for addr in labels:
             self._set_bit(buf, *addr)
         return buf
@@ -317,8 +402,8 @@ class SystemTelemetryLCD:
         self._write_frame(self._compose())
 
     # --- АНІМАЦІЯ СТАРТУ / ЗУПИНКИ ---
-    def _fill_frames(self, reverse=False):
-        """Кадри, у яких цифри по колу заповнюються, а потім ростуть смужки."""
+    def _sequence_fill_frames(self, reverse=False):
+        """Цифри заповнюються по одній, обидві смужки — паралельно."""
         order = list(reversed(DIGIT_ORDER)) if reverse else DIGIT_ORDER
         ring = list(reversed(DIGIT_RING)) if reverse else DIGIT_RING
         lit = {}
@@ -334,7 +419,28 @@ class SystemTelemetryLCD:
             yield self._compose(lit)
         for count in range(1, 11):
             labels = LABEL_BITS if count == 10 else ()
-            yield self._compose(lit, count, count, labels)
+            yield self._compose(lit, count, count, labels, reverse_bars=reverse)
+
+    def _parallel_fill_frames(self, reverse=False):
+        """Усі шість цифр і обидві смужки заповнюються одночасно."""
+        ring = list(reversed(DIGIT_RING)) if reverse else DIGIT_RING
+        for count in range(1, 11):
+            if count <= len(ring):
+                mask = [0] * 7
+                for seg_i in ring[:count]:
+                    mask[seg_i] = 1
+            else:
+                mask = list(DIGIT_FULL)
+            digits = {name: list(mask) for name in DIGIT_ORDER}
+            labels = LABEL_BITS if count == 10 else ()
+            yield self._compose(
+                digits, count, count, labels, reverse_bars=reverse
+            )
+
+    def _fill_frames(self, reverse=False):
+        if self.animation == "parallel":
+            return self._parallel_fill_frames(reverse)
+        return self._sequence_fill_frames(reverse)
 
     def _full_frame(self):
         digits = {name: list(DIGIT_FULL) for name in DIGIT_ORDER}
@@ -349,8 +455,11 @@ class SystemTelemetryLCD:
 
     def play_startup_animation(self):
         """Заповнює панель по колу, блимає один раз і віддає її телеметрії."""
+        if self.animation == "off":
+            return
         print("[*] Анімація запуску...", flush=True)
-        if not self._play(self._fill_frames(), 0.045):
+        delay = 0.075 if self.animation == "parallel" else 0.045
+        if not self._play(self._fill_frames(), delay):
             return
         self._write_frame(self._full_frame())
         time.sleep(0.30)
@@ -359,11 +468,15 @@ class SystemTelemetryLCD:
 
     def play_shutdown_animation(self):
         """Повторює коло у зворотному напрямку, блимає і плавно гасить панель."""
+        if self.animation == "off":
+            self.clear_display()
+            return
         print("[*] Анімація вимкнення...", flush=True)
         self._write_frame(self._compose())
         time.sleep(0.08)
-        if not self._play(self._fill_frames(reverse=True), 0.030):
-            self._write_frame(self._compose())
+        delay = 0.060 if self.animation == "parallel" else 0.030
+        if not self._play(self._fill_frames(reverse=True), delay):
+            self.clear_display()
             return
         self._write_frame(self._full_frame())
         time.sleep(0.25)
@@ -372,22 +485,26 @@ class SystemTelemetryLCD:
         self._write_frame(self._full_frame())
         time.sleep(0.18)
 
-        # Гасимо цифри справа наліво; смужки тануть разом із ними.
-        lit = {name: list(DIGIT_FULL) for name in DIGIT_ORDER}
-        for remaining in range(len(DIGIT_ORDER) - 1, -1, -1):
-            del lit[DIGIT_ORDER[remaining]]
-            bars = round(10 * remaining / len(DIGIT_ORDER))
-            labels = LABEL_BITS if remaining else ()
-            self._write_frame(self._compose(dict(lit), bars, bars, labels))
-            time.sleep(0.07)
-        self._write_frame(self._compose())
+        if self.animation == "parallel":
+            # Той самий ряд кадрів у зворотному порядку: цифри й смужки гаснуть разом.
+            drain = list(self._parallel_fill_frames())
+            drain.reverse()
+            if not self._play(drain[1:], 0.055):
+                self.clear_display()
+                return
+        else:
+            # Послідовний режим: цифри гаснуть справа наліво, смужки тануть разом.
+            lit = {name: list(DIGIT_FULL) for name in DIGIT_ORDER}
+            for remaining in range(len(DIGIT_ORDER) - 1, -1, -1):
+                del lit[DIGIT_ORDER[remaining]]
+                bars = round(10 * remaining / len(DIGIT_ORDER))
+                labels = LABEL_BITS if remaining else ()
+                self._write_frame(self._compose(dict(lit), bars, bars, labels))
+                time.sleep(0.07)
+        self.clear_display()
 
 def main():
-    args = sys.argv[1:]
-    wait = "--wait" in args
-    no_anim = "--no-anim" in args
-    args = [arg for arg in args if arg not in ("--wait", "--no-anim")]
-    explicit = args[0] if args else None
+    wait, animation, explicit = parse_args(sys.argv[1:])
     dev_node = (
         wait_for_lcd_device(explicit)
         if wait
@@ -399,7 +516,7 @@ def main():
             "    Встанови udev-правило: sudo ./install.sh\n"
             "    Або запусти з sudo: sudo python3 scripts/lcd.py"
         )
-    monitor = SystemTelemetryLCD(dev_node)
+    monitor = SystemTelemetryLCD(dev_node, animation=animation)
 
     def _stop(signum, frame):
         raise KeyboardInterrupt
@@ -407,18 +524,20 @@ def main():
     # systemd зупиняє сервіс через SIGTERM, а не Ctrl+C.
     signal.signal(signal.SIGTERM, _stop)
 
-    try:
-        if not no_anim:
-            monitor.play_startup_animation()
+    # Базовий зріз /proc/stat до анімації, щоб перший кадр телеметрії
+    # з'явився одразу після блиму, без зайвої паузи.
+    monitor.get_cpu_usage()
 
-        print(f"[*] Телеметрію запущено ({dev_node}). Натисни Ctrl+C для виходу.")
+    try:
+        monitor.play_startup_animation()
+        if animation == "off":
+            time.sleep(0.5)
+
+        print(f"[*] Телеметрію запущено ({dev_node}). Анімація: {animation}.")
+        print(f"    Натисни Ctrl+C для виходу.")
         print(f"    CPU Temp file: {monitor.cpu_temp_file}")
         print(f"    GPU Temp file: {monitor.gpu_temp_file}")
         print(f"    GPU Busy file: {monitor.gpu_busy_file}")
-
-        # Початковий розрахунок тиків CPU
-        monitor.get_cpu_usage()
-        time.sleep(0.5)
 
         while True:
             monitor.refresh_sensors()
@@ -441,10 +560,7 @@ def main():
         # Повторні сигнали не повинні обірвати анімацію вимкнення.
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        if no_anim:
-            monitor.clear_display()
-        else:
-            monitor.play_shutdown_animation()
+        monitor.play_shutdown_animation()
 
 if __name__ == "__main__":
     main()

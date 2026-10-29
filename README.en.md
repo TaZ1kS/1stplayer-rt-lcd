@@ -62,7 +62,7 @@ systemctl status 1stplayer-rt-lcd.service
 journalctl -u 1stplayer-rt-lcd.service -f
 ```
 
-The installer copies the code to `/opt/1stplayer-rt-lcd`, creates a stable `/dev/1stplayer-rt-lcd` symlink via udev and starts the telemetry service. If the symlink has not appeared yet, replug the display's USB cable.
+The installer copies the code to `/opt/1stplayer-rt-lcd`, creates a stable `/dev/1stplayer-rt-lcd` symlink via udev and starts the telemetry service. In an interactive terminal it first shows an animation-style menu (parallel, sequence or off) and stores the choice in `/etc/1stplayer-rt-lcd.conf`. If the symlink has not appeared yet, replug the display's USB cable.
 
 To run manually without a service:
 
@@ -122,7 +122,10 @@ The installer:
 1. copies the scripts and docs to `/opt/1stplayer-rt-lcd`;
 2. installs `/etc/udev/rules.d/99-1stplayer-rt-lcd.rules` with the symlink and `uaccess`;
 3. installs `1stplayer-rt-lcd.service`;
-4. enables and starts the service.
+4. writes the selected animation style to `/etc/1stplayer-rt-lcd.conf`;
+5. enables and starts the service.
+
+In an interactive terminal the installer shows an animation menu (`parallel`, `sequence`, `off`). For scripts and automation use `--animation MODE` and `--no-tui`; without a choice it keeps the current mode from the config or falls back to `parallel`.
 
 The service starts with `multi-user.target` and is not ordered after a `.device` unit for the symlink. `lcd.py --wait` waits up to 120 seconds for `/dev/1stplayer-rt-lcd`, so a slow USB display does not delay boot by 90 seconds or leave the panel blank. If the display does not appear, the service exits with an error and retries; `Restart=always` and `StartLimitIntervalSec=0` keep systemd trying.
 
@@ -177,7 +180,7 @@ This works thanks to `TAG+="uaccess"` in the udev rule — no root required. The
 git pull
 sudo ./install.sh          # reinstall files and restart the service
 
-sudo ./uninstall.sh        # remove the service, udev rule and /opt files
+sudo ./uninstall.sh        # remove the service, udev rule, config and /opt files
 ```
 
 For the user service:
@@ -207,7 +210,7 @@ systemctl --user daemon-reload
 python3 scripts/lcd.py
 ```
 
-For systemd there is a wait mode: `python3 scripts/lcd.py --wait /dev/1stplayer-rt-lcd`. It waits up to 120 seconds for the node to appear; the unit file uses this mode.
+For systemd there is a wait mode: `python3 scripts/lcd.py --wait /dev/1stplayer-rt-lcd`. It waits up to 120 seconds for the node to appear; the unit file uses this mode. Pick an animation style with `--anim parallel|sequence|off` (see below).
 
 Sensor discovery:
 
@@ -224,15 +227,34 @@ Sensors are re-checked at runtime. If the service started before `amdgpu` regist
 
 #### Startup and shutdown animation
 
-On start, `lcd.py` first plays a short greeting: the six digits fill clockwise one by one (segments `A`→`F`, then the centre `G`), the load bars grow left to right, all labels light up, the panel blinks once, and telemetry begins. On stop (`SIGTERM` from systemd or `Ctrl+C`) the circle runs in reverse, blinks and fades the panel out.
+On start, `lcd.py` plays a short greeting. The style is chosen in the `install.sh` menu and stored in `/etc/1stplayer-rt-lcd.conf`:
 
-The animation only touches bits 40–52; service bytes 24–39 stay zero. To skip it:
+| Mode | What happens |
+|---|---|
+| `parallel` (default) | all six digits fill around their perimeter at the same time (segments `A`→`F`, then the centre `G`), while both load bars grow in parallel with them; all labels flash and the panel blinks once at the end |
+| `sequence` | digits fill one by one from left to right, then both bars grow in parallel |
+| `off` | no animation; the panel is cleared on exit |
+
+On stop (`SIGTERM` from systemd or `Ctrl+C`) the animation runs in reverse, blinks and fades the panel out.
+
+You can change the mode without reinstalling: edit `ANIMATION=` in `/etc/1stplayer-rt-lcd.conf` and restart the service. Or pass the mode directly:
 
 ```bash
-python3 scripts/lcd.py --no-anim /dev/1stplayer-rt-lcd
+python3 scripts/lcd.py --anim parallel /dev/1stplayer-rt-lcd
+python3 scripts/lcd.py --animation sequence
+python3 scripts/lcd.py --no-anim
 ```
 
-With `--no-anim` the panel is simply cleared on exit.
+`--no-anim` is the same as `--anim off`. Without a flag the script reads `/etc/1stplayer-rt-lcd.conf`; if the file is missing, `parallel` is used.
+
+Skip the installer menu:
+
+```bash
+sudo ./install.sh --animation sequence   # set the mode without the TUI
+sudo ./install.sh --no-tui               # keep the current mode or use parallel
+```
+
+The animation only touches bits 40–52; service bytes 24–39 stay zero.
 
 ### `lcd_sym.py`
 
@@ -319,6 +341,19 @@ Full byte/bit table: [`docs/SEGMENT_MAP.md`](docs/SEGMENT_MAP.md).
 ## Safety
 
 The scripts write to the selected hidraw node. Make sure it is the display, not a keyboard, mouse or card reader — especially with `unlock.py`, which sends `0xFF` to bytes 24–53. Check `lsusb`, `udevadm info` and `ls -l /dev/hidraw*` before running anything. This project is not affiliated with 1st Player; use it at your own risk.
+
+## Roadmap
+
+- [x] CPU/GPU telemetry
+- [x] Scrolling text
+- [x] All-segments stress test
+- [x] Startup/shutdown panel animation
+- [x] Parallel fill of all six digits and both bars
+- [x] Animation style selection in the installer TUI
+- [x] Config file and CLI flags
+- [x] systemd service (system and user)
+- [x] `hidraw` auto-detection by VID/PID
+- [ ] AUR package
 
 ## License
 

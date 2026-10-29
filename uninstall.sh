@@ -11,6 +11,7 @@ fi
 systemctl disable --now 1stplayer-rt-lcd.service 2>/dev/null || true
 rm -f /etc/systemd/system/1stplayer-rt-lcd.service
 rm -f /etc/udev/rules.d/99-1stplayer-rt-lcd.rules
+rm -f /etc/1stplayer-rt-lcd.conf
 rm -f /dev/1stplayer-rt-lcd
 rm -rf /opt/1stplayer-rt-lcd
 
