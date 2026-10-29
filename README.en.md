@@ -222,6 +222,18 @@ Temperatures use three digits; load uses a 10-segment bar (~10% per segment). Mi
 
 Sensors are re-checked at runtime. If the service started before `amdgpu` registered its `hwmon` or `gpu_busy_percent` node, the GPU values appear without restarting the service. The same retry recovers a sensor path that became stale after a GPU reset.
 
+#### Startup and shutdown animation
+
+On start, `lcd.py` first plays a short greeting: the six digits fill clockwise one by one (segments `A`→`F`, then the centre `G`), the load bars grow left to right, all labels light up, the panel blinks once, and telemetry begins. On stop (`SIGTERM` from systemd or `Ctrl+C`) the circle runs in reverse, blinks and fades the panel out.
+
+The animation only touches bits 40–52; service bytes 24–39 stay zero. To skip it:
+
+```bash
+python3 scripts/lcd.py --no-anim /dev/1stplayer-rt-lcd
+```
+
+With `--no-anim` the panel is simply cleared on exit.
+
 ### `lcd_sym.py`
 
 ```bash

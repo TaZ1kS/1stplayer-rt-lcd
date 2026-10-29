@@ -16,7 +16,7 @@ help:
 	  '  make uninstall            remove the systemd service (sudo)' \
 	  '  make status               show service status' \
 	  '  make logs                 follow service logs' \
-	  '  make check                compile the scripts' \
+	  '  make check                compile the scripts and run tests' \
 	  '' \
 	  'Override the device with DEV=/dev/hidrawN.'
 
@@ -53,3 +53,5 @@ logs:
 
 check:
 	$(PYTHON) -m py_compile scripts/lcd.py scripts/lcd_sym.py scripts/unlock.py
+	$(PYTHON) tests/test_sensors.py
+	$(PYTHON) tests/test_animation.py

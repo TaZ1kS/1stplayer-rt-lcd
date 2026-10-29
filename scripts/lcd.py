@@ -7,12 +7,14 @@ Reads temperatures and load from Linux sysfs/procfs and renders them into the
 /dev/1stplayer-rt-lcd or USB ID 5131:2007; pass an explicit hidraw path as the
 first argument to override it. --wait makes the script wait for the device to
 appear; the systemd service uses it because the USB display may enumerate after
-boot.
+boot. On start and stop the panel plays a short circular light animation;
+--no-anim skips it.
 """
 import time
 import sys
 import os
 import glob
+import signal
 
 # --- АВТОВИЗНАЧЕННЯ HIDRAW-ВУЗЛА ---
 USB_VID = 0x5131
@@ -129,6 +131,15 @@ DIGITS = {
 BAR_CPU = [(46,6), (48,6), (50,6), (52,6), (41,0), (45,0), (43,0), (42,6), (44,6), (40,6)]
 BAR_GPU = [(49,0), (51,0), (40,7), (42,7), (44,7), (47,0), (52,7), (50,7), (48,7), (46,7)]
 
+# --- АНІМАЦІЯ ПАНЕЛІ ---
+# Цифри зліва направо; зовнішнє кільце сегментів A→F і центральний G.
+DIGIT_ORDER = ['CPU1', 'CPU2', 'CPU3', 'GPU1', 'GPU2', 'GPU3']
+DIGIT_RING = [0, 1, 2, 3, 4, 5]
+DIGIT_FULL = [1, 1, 1, 1, 1, 1, 1]
+
+# Підписи, які використовує телеметрія.
+LABEL_BITS = [(41, 2), (51, 2), (43, 2), (47, 2), (45, 1), (47, 1)]
+
 
 class SystemTelemetryLCD:
     def __init__(self, dev_path=None):
@@ -149,6 +160,39 @@ class SystemTelemetryLCD:
     def _set_bit(self, buf, byte_idx, bit_idx):
         if byte_idx >= 0 and bit_idx >= 0:
             buf[byte_idx] |= (1 << bit_idx)
+
+    def _set_digit(self, buf, digit_name, mask):
+        for seg_i, on in enumerate(mask):
+            if on:
+                b_idx, bit_i = SEGMENT_MAP[digit_name][seg_i]
+                self._set_bit(buf, b_idx, bit_i)
+
+    def _compose(self, digits=None, cpu_bars=0, gpu_bars=0, labels=()):
+        """Збирає кадр із цифр, смужок і підписів; seq додає _write_frame."""
+        buf = bytearray(64)
+        for name, mask in (digits or {}).items():
+            self._set_digit(buf, name, mask)
+        for i in range(min(10, max(0, cpu_bars))):
+            self._set_bit(buf, *BAR_CPU[i])
+        for i in range(min(10, max(0, gpu_bars))):
+            self._set_bit(buf, *BAR_GPU[i])
+        for addr in labels:
+            self._set_bit(buf, *addr)
+        return buf
+
+    def _write_frame(self, buf):
+        """Проставляє seq/заголовок і надсилає 64-байтний кадр у hidraw."""
+        buf[0] = self._get_seq()
+        buf[1] = 0x00
+        buf[2] = 0x02
+        try:
+            with open(self.dev_path, "wb") as dev:
+                dev.write(buf)
+                dev.flush()
+            return True
+        except Exception as e:
+            print(f"[!] Помилка запису в {self.dev_path}: {e}", flush=True)
+            return False
 
     # --- ДЕТЕКЦІЯ СЕНСОРІВ В АРЧ ЛІНУКС ---
     def _find_cpu_temp_file(self):
@@ -257,66 +301,92 @@ class SystemTelemetryLCD:
 
     # --- ОНОВЛЕННЯ ДИСПЛЕЯ ---
     def update_display(self, cpu_temp: int, cpu_usage: int, gpu_temp: int, gpu_usage: int):
-        buf = bytearray(64)
-        buf[0] = self._get_seq()
-        buf[1] = 0x00
-        buf[2] = 0x02
+        # Цифри показують температуру °C, смужки — завантаження USAGE.
+        digits = {}
+        for prefix, value in (("CPU", cpu_temp), ("GPU", gpu_temp)):
+            text = f"{value:>3}"
+            for idx, char in enumerate(text):
+                key = int(char) if char != ' ' else ' '
+                digits[f"{prefix}{idx + 1}"] = DIGITS[key]
 
-        # Увімкнення текстових ікон:
-        # Цифри показують температуру °C, смужки — завантаження USAGE
-        self._set_bit(buf, 41, 2) # CPU label
-        self._set_bit(buf, 51, 2) # GPU label
-        self._set_bit(buf, 43, 2) # CPU USAGE
-        self._set_bit(buf, 47, 2) # GPU USAGE
-        self._set_bit(buf, 45, 1) # CPU °C
-        self._set_bit(buf, 47, 1) # GPU °C
-
-        # Рендеринг температур у цифри (3 розряди)
-        c_str = f"{cpu_temp:>3}"
-        g_str = f"{gpu_temp:>3}"
-
-        for idx, char in enumerate(c_str):
-            val = int(char) if char != ' ' else ' '
-            mask = DIGITS[val]
-            digit_name = f"CPU{idx+1}"
-            for seg_i, on in enumerate(mask):
-                if on:
-                    b_idx, bit_i = SEGMENT_MAP[digit_name][seg_i]
-                    self._set_bit(buf, b_idx, bit_i)
-
-        for idx, char in enumerate(g_str):
-            val = int(char) if char != ' ' else ' '
-            mask = DIGITS[val]
-            digit_name = f"GPU{idx+1}"
-            for seg_i, on in enumerate(mask):
-                if on:
-                    b_idx, bit_i = SEGMENT_MAP[digit_name][seg_i]
-                    self._set_bit(buf, b_idx, bit_i)
-
-        # Рендеринг завантаження (%) у 10-сегментні смужки
         c_bars = min(10, max(0, int(cpu_usage / 10)))
         g_bars = min(10, max(0, int(gpu_usage / 10)))
+        self._write_frame(self._compose(digits, c_bars, g_bars, LABEL_BITS))
 
-        for i in range(c_bars):
-            b_idx, bit_i = BAR_CPU[i]
-            self._set_bit(buf, b_idx, bit_i)
+    def clear_display(self):
+        self._write_frame(self._compose())
 
-        for i in range(g_bars):
-            b_idx, bit_i = BAR_GPU[i]
-            self._set_bit(buf, b_idx, bit_i)
+    # --- АНІМАЦІЯ СТАРТУ / ЗУПИНКИ ---
+    def _fill_frames(self, reverse=False):
+        """Кадри, у яких цифри по колу заповнюються, а потім ростуть смужки."""
+        order = list(reversed(DIGIT_ORDER)) if reverse else DIGIT_ORDER
+        ring = list(reversed(DIGIT_RING)) if reverse else DIGIT_RING
+        lit = {}
+        for name in order:
+            for count in range(1, len(ring) + 1):
+                mask = [0] * 7
+                for seg_i in ring[:count]:
+                    mask[seg_i] = 1
+                frame_digits = dict(lit)
+                frame_digits[name] = mask
+                yield self._compose(frame_digits)
+            lit[name] = list(DIGIT_FULL)
+            yield self._compose(lit)
+        for count in range(1, 11):
+            labels = LABEL_BITS if count == 10 else ()
+            yield self._compose(lit, count, count, labels)
 
-        # Запис кадру в HID-вузол
-        try:
-            with open(self.dev_path, "wb") as dev:
-                dev.write(buf)
-                dev.flush()
-        except Exception as e:
-            print(f"[!] Помилка запису в {self.dev_path}: {e}")
+    def _full_frame(self):
+        digits = {name: list(DIGIT_FULL) for name in DIGIT_ORDER}
+        return self._compose(digits, 10, 10, LABEL_BITS)
+
+    def _play(self, frames, delay):
+        for frame in frames:
+            if not self._write_frame(frame):
+                return False
+            time.sleep(delay)
+        return True
+
+    def play_startup_animation(self):
+        """Заповнює панель по колу, блимає один раз і віддає її телеметрії."""
+        print("[*] Анімація запуску...", flush=True)
+        if not self._play(self._fill_frames(), 0.045):
+            return
+        self._write_frame(self._full_frame())
+        time.sleep(0.30)
+        self._write_frame(self._compose())
+        time.sleep(0.14)
+
+    def play_shutdown_animation(self):
+        """Повторює коло у зворотному напрямку, блимає і плавно гасить панель."""
+        print("[*] Анімація вимкнення...", flush=True)
+        self._write_frame(self._compose())
+        time.sleep(0.08)
+        if not self._play(self._fill_frames(reverse=True), 0.030):
+            self._write_frame(self._compose())
+            return
+        self._write_frame(self._full_frame())
+        time.sleep(0.25)
+        self._write_frame(self._compose())
+        time.sleep(0.12)
+        self._write_frame(self._full_frame())
+        time.sleep(0.18)
+
+        # Гасимо цифри справа наліво; смужки тануть разом із ними.
+        lit = {name: list(DIGIT_FULL) for name in DIGIT_ORDER}
+        for remaining in range(len(DIGIT_ORDER) - 1, -1, -1):
+            del lit[DIGIT_ORDER[remaining]]
+            bars = round(10 * remaining / len(DIGIT_ORDER))
+            labels = LABEL_BITS if remaining else ()
+            self._write_frame(self._compose(dict(lit), bars, bars, labels))
+            time.sleep(0.07)
+        self._write_frame(self._compose())
 
 def main():
     args = sys.argv[1:]
     wait = "--wait" in args
-    args = [arg for arg in args if arg != "--wait"]
+    no_anim = "--no-anim" in args
+    args = [arg for arg in args if arg not in ("--wait", "--no-anim")]
     explicit = args[0] if args else None
     dev_node = (
         wait_for_lcd_device(explicit)
@@ -331,16 +401,25 @@ def main():
         )
     monitor = SystemTelemetryLCD(dev_node)
 
-    print(f"[*] Телеметрію запущено ({dev_node}). Натисни Ctrl+C для виходу.")
-    print(f"    CPU Temp file: {monitor.cpu_temp_file}")
-    print(f"    GPU Temp file: {monitor.gpu_temp_file}")
-    print(f"    GPU Busy file: {monitor.gpu_busy_file}")
+    def _stop(signum, frame):
+        raise KeyboardInterrupt
 
-    # Початковий розрахунок тиків CPU
-    monitor.get_cpu_usage()
-    time.sleep(0.5)
+    # systemd зупиняє сервіс через SIGTERM, а не Ctrl+C.
+    signal.signal(signal.SIGTERM, _stop)
 
     try:
+        if not no_anim:
+            monitor.play_startup_animation()
+
+        print(f"[*] Телеметрію запущено ({dev_node}). Натисни Ctrl+C для виходу.")
+        print(f"    CPU Temp file: {monitor.cpu_temp_file}")
+        print(f"    GPU Temp file: {monitor.gpu_temp_file}")
+        print(f"    GPU Busy file: {monitor.gpu_busy_file}")
+
+        # Початковий розрахунок тиків CPU
+        monitor.get_cpu_usage()
+        time.sleep(0.5)
+
         while True:
             monitor.refresh_sensors()
             c_temp = monitor.get_cpu_temp()
@@ -358,6 +437,14 @@ def main():
 
     except KeyboardInterrupt:
         print("\n[*] Моніторинг зупинено.")
+    finally:
+        # Повторні сигнали не повинні обірвати анімацію вимкнення.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if no_anim:
+            monitor.clear_display()
+        else:
+            monitor.play_shutdown_animation()
 
 if __name__ == "__main__":
     main()

@@ -22,6 +22,8 @@ jobs:
         run: bash -n install.sh uninstall.sh
       - name: Test late GPU sensor detection
         run: python tests/test_sensors.py
+      - name: Test startup/shutdown animation
+        run: python tests/test_animation.py
       - name: Verify systemd units
         run: systemd-analyze verify systemd/1stplayer-rt-lcd.service systemd/1stplayer-rt-lcd.user.service
       - name: Check boot start does not wait for a device unit
