@@ -55,3 +55,4 @@ check:
 	$(PYTHON) -m py_compile scripts/lcd.py scripts/lcd_sym.py scripts/unlock.py
 	$(PYTHON) tests/test_sensors.py
 	$(PYTHON) tests/test_animation.py
+	$(PYTHON) tests/test_device.py

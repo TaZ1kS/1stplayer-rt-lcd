@@ -156,6 +156,21 @@ chmod 644 "${CONFIG}"
 
 systemctl daemon-reload
 
+# Зупиняємо старий сервіс, щоб він не встиг знову створити файл між очищенням
+# і udev trigger. Для --no-service нічого не зупиняємо.
+if [[ ${INSTALL_SERVICE} -eq 1 ]]; then
+    systemctl stop 1stplayer-rt-lcd.service 2>/dev/null || true
+fi
+
+# Якщо дисплей перепідключався, стара версія сервісу могла створити звичайний
+# файл /dev/1stplayer-rt-lcd. udev не замінить його symlink'ом, тому прибираємо
+# все, що не є символьним пристроєм, перед trigger.
+if [[ -e /dev/1stplayer-rt-lcd || -L /dev/1stplayer-rt-lcd ]] \
+    && [[ ! -c /dev/1stplayer-rt-lcd ]]; then
+    echo "Removing stale /dev/1stplayer-rt-lcd (not a character device)"
+    rm -f /dev/1stplayer-rt-lcd
+fi
+
 # A udev problem must not prevent the service from being installed/enabled.
 if ! udevadm control --reload-rules; then
     echo "Warning: could not reload udev rules" >&2
@@ -170,8 +185,12 @@ if [[ ${INSTALL_SERVICE} -eq 1 ]]; then
     systemctl restart 1stplayer-rt-lcd.service
 fi
 
-if [[ -e /dev/1stplayer-rt-lcd ]]; then
+if [[ -c /dev/1stplayer-rt-lcd ]]; then
     echo "Device: /dev/1stplayer-rt-lcd"
+elif [[ -e /dev/1stplayer-rt-lcd ]]; then
+    echo "Warning: /dev/1stplayer-rt-lcd exists but is not a character device." >&2
+    echo "         Remove it and replug the display's USB cable:" >&2
+    echo "         sudo rm -f /dev/1stplayer-rt-lcd && sudo udevadm trigger" >&2
 else
     echo "Warning: /dev/1stplayer-rt-lcd not found yet. Replug the display's USB cable." >&2
 fi

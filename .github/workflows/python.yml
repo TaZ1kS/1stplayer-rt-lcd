@@ -24,6 +24,8 @@ jobs:
         run: python tests/test_sensors.py
       - name: Test startup/shutdown animation
         run: python tests/test_animation.py
+      - name: Test device path safety
+        run: python tests/test_device.py
       - name: Verify systemd units
         run: systemd-analyze verify systemd/1stplayer-rt-lcd.service systemd/1stplayer-rt-lcd.user.service
       - name: Check boot start does not wait for a device unit

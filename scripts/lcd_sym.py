@@ -10,11 +10,20 @@ import time
 import sys
 import os
 import glob
+import stat
 
 # --- АВТОВИЗНАЧЕННЯ HIDRAW-ВУЗЛА ---
 USB_VID = 0x5131
 USB_PID = 0x2007
 STABLE_PATH = "/dev/1stplayer-rt-lcd"
+
+
+def _is_char_device(path):
+    """True лише для справжнього символьного вузла (hidraw)."""
+    try:
+        return stat.S_ISCHR(os.stat(path).st_mode)
+    except OSError:
+        return False
 
 
 def _hid_id(sys_node):
@@ -39,10 +48,14 @@ def _hidraw_devices():
 
 
 def find_lcd_device(explicit=None):
-    """Знаходить вузол дисплея: аргумент -> symlink -> VID/PID."""
-    if explicit:
+    """Знаходить вузол дисплея: аргумент -> symlink -> VID/PID.
+
+    Застарілий звичайний файл /dev/1stplayer-rt-lcd ігнорується, навіть якщо
+    його передано явно: писати кадри у файл замість hidraw небезпечно.
+    """
+    if explicit and (explicit != STABLE_PATH or _is_char_device(explicit)):
         return explicit
-    if os.path.exists(STABLE_PATH):
+    if _is_char_device(STABLE_PATH):
         return STABLE_PATH
 
     devices = _hidraw_devices()
@@ -144,10 +157,13 @@ class MarqueeLCD:
                     self._set_bit(buf, b_idx, bit_i)
 
         try:
-            with open(self.dev_path, "wb") as dev:
-                dev.write(buf)
-                dev.flush()
-        except Exception as e:
+            # Без O_CREAT: зниклий symlink не має перетворитися на файл.
+            fd = os.open(self.dev_path, os.O_WRONLY)
+            try:
+                os.write(fd, buf)
+            finally:
+                os.close(fd)
+        except OSError as e:
             print(f"[!] Помилка запису у {self.dev_path}: {e}")
 
     def scroll_text(self, text: str, delay=0.25):

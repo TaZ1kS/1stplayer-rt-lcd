@@ -18,11 +18,20 @@ import sys
 import os
 import glob
 import signal
+import stat
 
 # --- АВТОВИЗНАЧЕННЯ HIDRAW-ВУЗЛА ---
 USB_VID = 0x5131
 USB_PID = 0x2007
 STABLE_PATH = "/dev/1stplayer-rt-lcd"
+
+
+def _is_char_device(path):
+    """True лише для справжнього символьного вузла (hidraw)."""
+    try:
+        return stat.S_ISCHR(os.stat(path).st_mode)
+    except OSError:
+        return False
 
 
 def _hid_id(sys_node):
@@ -47,10 +56,15 @@ def _hidraw_devices():
 
 
 def find_lcd_device(explicit=None):
-    """Знаходить вузол дисплея: аргумент -> symlink -> VID/PID."""
-    if explicit:
+    """Знаходить вузол дисплея: аргумент -> symlink -> VID/PID.
+
+    Стабільний шлях приймається лише якщо це символьний пристрій. Застарілий
+    звичайний файл /dev/1stplayer-rt-lcd ігнорується, навіть коли його явно
+    передав systemd: інакше телеметрія писала б у файл замість панелі.
+    """
+    if explicit and (explicit != STABLE_PATH or _is_char_device(explicit)):
         return explicit
-    if os.path.exists(STABLE_PATH):
+    if _is_char_device(STABLE_PATH):
         return STABLE_PATH
 
     devices = _hidraw_devices()
@@ -250,6 +264,7 @@ class SystemTelemetryLCD:
         self.seq_id = 0x61
         self.prev_idle = 0
         self.prev_total = 0
+        self._last_write_error = None
         
         self.cpu_temp_file = self._find_cpu_temp_file()
         self.gpu_temp_file = self._find_gpu_temp_file()
@@ -283,19 +298,46 @@ class SystemTelemetryLCD:
             self._set_bit(buf, *addr)
         return buf
 
+    def _send_frame(self, buf):
+        """Пише кадр у вже наявний вузол, ніколи не створюючи файл."""
+        try:
+            # Без O_CREAT: якщо hidraw зник, open не має створити звичайний
+            # файл /dev/1stplayer-rt-lcd замість symlink.
+            fd = os.open(self.dev_path, os.O_WRONLY)
+            try:
+                os.write(fd, buf)
+            finally:
+                os.close(fd)
+            return True
+        except OSError as exc:
+            self._last_write_error = exc
+            return False
+
+    def _recover_device(self):
+        """Після зникнення вузла повторно шукає дисплей (USB re-enumeration)."""
+        try:
+            node = find_lcd_device()
+        except SystemExit:
+            return False
+        if node != self.dev_path:
+            print(f"[i] Дисплей перепідключено: {self.dev_path} -> {node}", flush=True)
+            self.dev_path = node
+        return os.path.exists(node)
+
     def _write_frame(self, buf):
         """Проставляє seq/заголовок і надсилає 64-байтний кадр у hidraw."""
         buf[0] = self._get_seq()
         buf[1] = 0x00
         buf[2] = 0x02
-        try:
-            with open(self.dev_path, "wb") as dev:
-                dev.write(buf)
-                dev.flush()
+        self._last_write_error = None
+        if self._send_frame(buf):
             return True
-        except Exception as e:
-            print(f"[!] Помилка запису в {self.dev_path}: {e}", flush=True)
-            return False
+        if self._recover_device() and self._send_frame(buf):
+            print(f"[i] Запис відновлено: {self.dev_path}", flush=True)
+            return True
+        error = self._last_write_error or "пристрій недоступний"
+        print(f"[!] Помилка запису в {self.dev_path}: {error}", flush=True)
+        return False
 
     # --- ДЕТЕКЦІЯ СЕНСОРІВ В АРЧ ЛІНУКС ---
     def _find_cpu_temp_file(self):

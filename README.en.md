@@ -93,10 +93,12 @@ make stress               # python3 scripts/unlock.py /dev/1stplayer-rt-lcd
 Device selection order:
 
 1. **Explicit argument** — `python3 scripts/lcd.py /dev/hidraw5` always wins.
-2. **Stable symlink** `/dev/1stplayer-rt-lcd`, created by the udev rule.
+2. **Stable symlink** `/dev/1stplayer-rt-lcd`, created by the udev rule. It is accepted only when it points to a character device.
 3. **USB ID scan** — the script reads `HID_ID` from `/sys/class/hidraw/hidraw*/device/uevent` and looks for `0003:00005131:00002007`.
 
 If exactly one device matches, it is used. If there are no matches or several, the script lists the available `hidraw` devices and exits. This is intentional: it is better to fail than to send 64-byte frames to a keyboard, mouse or another HID device.
+
+Frames are opened without `O_CREAT`, so if the display briefly disappears from `/dev`, the script cannot turn the missing symlink into a regular file. A stale `/dev/1stplayer-rt-lcd` regular file is ignored even when systemd passes it explicitly; the script falls back to the USB ID scan. If a write fails after re-enumeration, `lcd.py` re-detects the device and retries the frame once.
 
 Check the IDs manually:
 
@@ -193,6 +195,17 @@ systemctl --user daemon-reload
 
 > [!NOTE]
 > If `/dev/1stplayer-rt-lcd` does not appear, check the VID/PID in the udev rule, run `sudo udevadm control --reload-rules && sudo udevadm trigger`, and replug the display. The scripts can also find the device by USB ID without the symlink, but the service uses `/dev/1stplayer-rt-lcd` explicitly so it does not depend on the `hidrawN` ordering.
+>
+> If `/dev/1stplayer-rt-lcd` is a regular file rather than a symlink (`ls -l` shows `-rw-r--r--`), an older version created it while the display was re-enumerating. Remove it and retrigger udev:
+>
+> ```bash
+> sudo rm -f /dev/1stplayer-rt-lcd
+> sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
+> sudo ./install.sh
+> ls -l /dev/1stplayer-rt-lcd   # must be a symlink to /dev/hidrawN
+> ```
+>
+> Since v1.3.4 the script never creates or uses such a file, even if it already exists in `/dev`.
 >
 > If the service takes a long time to start after a reboot, check `systemctl cat 1stplayer-rt-lcd.service`: versions before v1.1.1 contained `After=`/`Wants=` for `dev-1stplayer\x2drt\x2dlcd.device`. When the symlink device unit failed to activate, systemd waited for the 90-second timeout. Update with `git pull && sudo ./install.sh`.
 
